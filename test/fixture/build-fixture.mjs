@@ -85,12 +85,24 @@ const DATA_STYLE_PAR_ZONE = {
   ignorees: S.donneesDefaut,
 };
 
+// Garde-fou : si une nouvelle zone apparaît dans colonnes.js sans style associé
+// ici, on échoue immédiatement au chargement du module plutôt que d'écrire
+// silencieusement s="undefined" dans le XML.
+for (const colonne of COLONNES) {
+  if (!(colonne.zone in HEADER3_STYLE_PAR_ZONE) || !(colonne.zone in DATA_STYLE_PAR_ZONE)) {
+    throw new Error(
+      `build-fixture.mjs : la zone « ${colonne.zone} » (colonne ${colonne.lettre}) ` +
+      `n'a pas de style dans HEADER3_STYLE_PAR_ZONE / DATA_STYLE_PAR_ZONE`
+    );
+  }
+}
+
 function buildStylesXml() {
   const fonts = [
     '<font><sz val="11"/><name val="Calibri"/></font>',
     '<font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font>',
     '<font><b/><color rgb="FF000000"/><sz val="11"/><name val="Calibri"/></font>',
-  ].join('');
+  ];
 
   const fills = [
     '<fill><patternFill patternType="none"/></fill>',
@@ -102,12 +114,12 @@ function buildStylesXml() {
     fillSolid('FFFFFFCC'),
     fillSolid('FFFFCCFF'),
     fillSolid('FFE7FFE7'),
-  ].join('');
+  ];
 
   const borders = [
     '<border><left/><right/><top/><bottom/><diagonal/></border>',
     '<border><left style="thin"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="thin"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border>',
-  ].join('');
+  ];
 
   const centre = '<alignment horizontal="center" vertical="center" wrapText="1"/>';
   const xf = (fontId, fillId, borderId, alignment = '') =>
@@ -127,14 +139,14 @@ function buildStylesXml() {
     xf(0, 7, 1), // 10 donneesIdentification
     xf(0, 8, 1), // 11 donneesReport
     xf(0, 0, 1), // 12 donneesDefaut
-  ].join('');
+  ];
 
   return `${XML_HEADER}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
-    `<fonts count="3">${fonts}</fonts>` +
-    `<fills count="9">${fills}</fills>` +
-    `<borders count="2">${borders}</borders>` +
+    `<fonts count="${fonts.length}">${fonts.join('')}</fonts>` +
+    `<fills count="${fills.length}">${fills.join('')}</fills>` +
+    `<borders count="${borders.length}">${borders.join('')}</borders>` +
     `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-    `<cellXfs count="${cellXfs.split('<xf').length - 1}">${cellXfs}</cellXfs>` +
+    `<cellXfs count="${cellXfs.length}">${cellXfs.join('')}</cellXfs>` +
     `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
     `</styleSheet>`;
 }
@@ -239,9 +251,15 @@ const DATA_ROWS = {
   },
 };
 
+// FIXTURE_ATTENDU expose la même référence : un test qui muterait DATA_ROWS
+// corromprait silencieusement les assertions suivantes — le gel rend ça bruyant.
+for (const ligne of Object.values(DATA_ROWS)) Object.freeze(ligne);
+Object.freeze(DATA_ROWS);
+
 // Clés dont la valeur doit être écrite en nombre plutôt qu'en chaîne partagée.
-// (colonnes.js les classe en "texte"/"nombre" côté UI, mais insee et pce sont
-// physiquement des nombres dans le fichier réel — cf. spec Task 7.)
+// colonnes.js décrit le type côté UI (insee et pce en "texte", phaseTerrain en
+// "liste"), mais dans le fichier réel ces cellules sont physiquement des nombres
+// (<v> brut sans t="s") — cf. spec Task 7 ; identificationPb est "nombre" partout.
 const CLES_NUMERIQUES = new Set(['insee', 'pce', 'phaseTerrain', 'identificationPb']);
 
 const V_FORMULE =
@@ -310,36 +328,42 @@ function buildSheet2Xml(ss) {
 
   const sheetData = `<sheetData>${assemblerLignes(cellules)}</sheetData>`;
 
+  const fusions = ['A1:K1', 'O1:AD1', 'AH1:AO1', 'O2:X2', 'Y2:AD2', 'AH2:AO2'];
   const mergeCells =
-    '<mergeCells count="6">' +
-    '<mergeCell ref="A1:K1"/><mergeCell ref="O1:AD1"/><mergeCell ref="AH1:AO1"/>' +
-    '<mergeCell ref="O2:X2"/><mergeCell ref="Y2:AD2"/><mergeCell ref="AH2:AO2"/>' +
+    `<mergeCells count="${fusions.length}">` +
+    fusions.map(ref => `<mergeCell ref="${ref}"/>`).join('') +
     '</mergeCells>';
 
   // Colonnes masquées W..AD (zone « Régulateur », comme le vrai fichier).
   const cols = `<cols><col min="${lettreVersIndex('W')}" max="${lettreVersIndex('AD')}" width="9" hidden="1" customWidth="1"/></cols>`;
 
+  const validations = [
+    validationStandard('COFFRET', 'O4:O20'),
+    validationStandard('BRT', 'P4:P20 AJ4:AJ20'),
+    validationStandard('Matiere', 'Q4:Q20'),
+    validationStandard('INDIRECT(Q4)', 'R4:R20'),
+    validationStandard('Equipement_coffret', 'S4:S20'),
+    validationStandard('PROTECTION', 'T4:T20'),
+    validationStandard('VALEUR', 'AG4:AG20 AM4:AM20'),
+    validationStandard('APPAREIL', 'AI4:AI20'),
+    validationStandard('Point_d_arret_client', 'AK4:AK20'),
+    validationStandard('DI_technique', 'AL4:AL20'),
+  ];
   const dataValidations =
-    '<dataValidations count="10">' +
-    validationStandard('COFFRET', 'O4:O20') +
-    validationStandard('BRT', 'P4:P20 AJ4:AJ20') +
-    validationStandard('Matiere', 'Q4:Q20') +
-    validationStandard('INDIRECT(Q4)', 'R4:R20') +
-    validationStandard('Equipement_coffret', 'S4:S20') +
-    validationStandard('PROTECTION', 'T4:T20') +
-    validationStandard('VALEUR', 'AG4:AG20 AM4:AM20') +
-    validationStandard('APPAREIL', 'AI4:AI20') +
-    validationStandard('Point_d_arret_client', 'AK4:AK20') +
-    validationStandard('DI_technique', 'AL4:AL20') +
-    '</dataValidations>';
+    `<dataValidations count="${validations.length}">${validations.join('')}</dataValidations>`;
 
+  // Validations étendues : la plage source est dérivée des listes (jamais
+  // re-saisie), seule la colonne cible reste explicite.
+  const validationsX14 = [
+    validationX14(plageListeColonne('R'), 'AH4:AH20'),
+    validationX14(plageListeColonne('AA'), 'AO4:AO20'),
+    validationX14(plageListeColonne('Y'), 'Y4:Y20'),
+    validationX14(plageListeColonne('W'), 'AA4:AA20'),
+  ];
   const extLst =
     '<extLst><ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main">' +
-    '<x14:dataValidations count="4" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">' +
-    validationX14('Listes!$R$2:$R$5', 'AH4:AH20') +
-    validationX14('Listes!$AA$2:$AA$4', 'AO4:AO20') +
-    validationX14('Listes!$Y$2:$Y$3', 'Y4:Y20') +
-    validationX14('Listes!$W$2:$W$3', 'AA4:AA20') +
+    `<x14:dataValidations count="${validationsX14.length}" xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">` +
+    validationsX14.join('') +
     '</x14:dataValidations></ext></extLst>';
 
   return (
@@ -442,6 +466,38 @@ const MATIERE_VALEURS = ['PE', 'Ac', 'Cu', 'Pb', 'Solacier', 'Métal'];
 const PE_VALEURS = ['20', '32', 'Autre']; // Listes!E2:E4
 const AUTRE_MATIERE_VALEUR = '-'; // Listes!F2/G2/H2/I2/J2
 
+/**
+ * Plage absolue d'une liste verticale de l'onglet Listes (valeurs à partir de
+ * `debut`). Une liste d'une seule valeur donne la forme cellule unique
+ * (`Listes!$U$2`), comme le vrai fichier pour VALEUR.
+ * @param {string} lettre - Colonne de la liste dans Listes.
+ * @param {Array} valeurs - Valeurs de la liste (leur nombre fixe la ligne de fin).
+ * @param {number} [debut=2] - Première ligne des valeurs (2 = sous le titre).
+ * @returns {string} Référence absolue, ex. 'Listes!$R$2:$R$5'.
+ */
+function plageListe(lettre, valeurs, debut = 2) {
+  const fin = debut + valeurs.length - 1;
+  return fin === debut
+    ? `Listes!$${lettre}$${debut}`
+    : `Listes!$${lettre}$${debut}:$${lettre}$${fin}`;
+}
+
+/**
+ * Plage absolue de la liste LISTES_COLONNES portée par la colonne `lettre`.
+ * Utilisée à la fois par les plages nommées (workbook.xml) et les validations
+ * x14 (sheet2.xml) : la borne de fin est dérivée du nombre de valeurs, jamais
+ * re-saisie à la main.
+ * @param {string} lettre - Colonne de la liste dans Listes (ex. 'R').
+ * @returns {string} Référence absolue, ex. 'Listes!$R$2:$R$5'.
+ */
+function plageListeColonne(lettre) {
+  const colonne = LISTES_COLONNES.find(c => c.lettre === lettre);
+  if (!colonne) {
+    throw new Error(`build-fixture.mjs : aucune liste en colonne ${lettre} de l'onglet Listes`);
+  }
+  return plageListe(colonne.lettre, colonne.valeurs);
+}
+
 function buildSheet3Xml(ss) {
   const cellules = [];
 
@@ -508,26 +564,29 @@ function buildWorkbookXml() {
     '<sheet name="Listes" sheetId="3" r:id="rId3"/>' +
     '</sheets>';
 
+  // Plages verticales dérivées des listes elles-mêmes (plageListeColonne) ;
+  // le bloc Matiere (horizontal E1:J1 + cellules fixes) reste explicite car sa
+  // géométrie ne se déduit pas d'un simple nombre de valeurs.
   const definedNames =
     '<definedNames>' +
-    definedName('COFFRET', 'Listes!$A$2:$A$5') +
-    definedName('BRT', 'Listes!$B$2:$B$6') +
-    definedName('TYPE_CLIENT', 'Listes!$C$2:$C$4') +
-    definedName('Equipement_coffret', 'Listes!$D$2:$D$6') +
+    definedName('COFFRET', plageListeColonne('A')) +
+    definedName('BRT', plageListeColonne('B')) +
+    definedName('TYPE_CLIENT', plageListeColonne('C')) +
+    definedName('Equipement_coffret', plageListeColonne('D')) +
     definedName('Matiere', 'Listes!$E$1:$J$1') +
-    definedName('PE', 'Listes!$E$2:$E$4') +
+    definedName('PE', plageListe('E', PE_VALEURS)) +
     definedName('Ac', 'Listes!$F$2:$F$2') +
     definedName('Cu', 'Listes!$G$2:$G$2') +
     definedName('Pb', 'Listes!$H$2:$H$2') +
     definedName('Solacier', 'Listes!$I$2:$I$2') +
     definedName('Métal', 'Listes!$J$2:$J$2') +
-    definedName('PROTECTION', 'Listes!$K$2:$K$6') +
-    definedName('PRESSION', 'Listes!$L$2:$L$4') +
-    definedName('DI_technique', 'Listes!$S$2:$S$4') +
-    definedName('Point_d_arret_client', 'Listes!$T$2:$T$3') +
-    definedName('VALEUR', 'Listes!$U$2') +
-    definedName('APPAREIL', 'Listes!$V$2:$V$5') +
-    definedName('TYPE_REPORT_AVENANT', 'Listes!$R$2:$R$5') +
+    definedName('PROTECTION', plageListeColonne('K')) +
+    definedName('PRESSION', plageListeColonne('L')) +
+    definedName('DI_technique', plageListeColonne('S')) +
+    definedName('Point_d_arret_client', plageListeColonne('T')) +
+    definedName('VALEUR', plageListeColonne('U')) +
+    definedName('APPAREIL', plageListeColonne('V')) +
+    definedName('TYPE_REPORT_AVENANT', plageListeColonne('R')) +
     '</definedNames>';
 
   return (
@@ -558,6 +617,11 @@ function buildSheet2Rels() {
     '</Relationships>'
   );
 }
+
+// ---------------------------------------------------------------------------
+// Plomberie du paquet OPC ([Content_Types].xml, _rels/.rels, docProps) —
+// enveloppe commune à tout .xlsx, indépendante du contenu du classeur.
+// ---------------------------------------------------------------------------
 
 function buildContentTypes() {
   return (
