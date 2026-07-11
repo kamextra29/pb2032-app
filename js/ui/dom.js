@@ -1,5 +1,6 @@
 // Convention maison : toute valeur dynamique interpolée dans du HTML
-// DOIT passer par echapperHtml().
+// DOIT passer par echapperHtml(). Valable uniquement pour du texte HTML et des
+// valeurs d'attributs entre guillemets — jamais pour construire des URL ou du JS.
 
 const REMPLACEMENTS = {
   '&': '&amp;',
