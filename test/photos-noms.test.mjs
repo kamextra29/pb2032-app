@@ -19,3 +19,11 @@ test('cas particuliers', () => {
   assert.equal(nomPhoto({ numero: '3', rue: "Impasse de l'Église / Nord", pce: '1' }, 1),
     '3_IMPASSE-DE-L-EGLISE-NORD_1_1.jpg');
 });
+
+test('entrées numériques (valeurs brutes Excel)', () => {
+  assert.equal(nomPhoto({ numero: 4, rue: 'X', pce: 12200144633562 }, 1), '4_X_12200144633562_1.jpg');
+});
+
+test('aucun identifiant → erreur explicite', () => {
+  assert.throws(() => nomPhoto({ numero: '4', rue: 'X', pce: '' }, 1), /ni PCE/);
+});

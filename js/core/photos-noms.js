@@ -12,24 +12,26 @@
  * @returns {string} Nom de fichier normalisé
  */
 export function nomPhoto(infos, index) {
-  // Normalize numero
-  let numeroPart = normalizeForPhoto(infos.numero || '');
+  // Normalisation du numéro (String() : les valeurs Excel peuvent être des nombres)
+  let numeroPart = normalizeForPhoto(String(infos.numero || ''));
   if (!numeroPart) {
     numeroPart = 'SN';
   }
 
-  // Normalize rue
-  const ruePart = normalizeForPhoto(infos.rue || '');
+  // Normalisation de la rue
+  const ruePart = normalizeForPhoto(String(infos.rue || ''));
 
-  // Determine PCE part
+  // Partie PCE (avec replis ajoutId puis ligne)
   let pcePart;
   const pceStr = String(infos.pce || '').trim();
   if (pceStr) {
     pcePart = pceStr;
   } else if (infos.ajoutId !== undefined) {
     pcePart = 'A' + String(infos.ajoutId).padStart(4, '0');
-  } else {
+  } else if (infos.ligne !== undefined) {
     pcePart = 'L' + String(infos.ligne).padStart(4, '0');
+  } else {
+    throw new Error('nomPhoto : ni PCE, ni ajoutId, ni ligne fournis');
   }
 
   return `${numeroPart}_${ruePart}_${pcePart}_${index}.jpg`;
