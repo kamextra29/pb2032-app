@@ -12,8 +12,9 @@
  * @returns {string} Nom de fichier normalisé
  */
 export function nomPhoto(infos, index) {
-  // Normalisation du numéro (String() : les valeurs Excel peuvent être des nombres)
-  let numeroPart = normalizeForPhoto(String(infos.numero || ''));
+  // Normalisation du numéro (String() : les valeurs Excel peuvent être des nombres ;
+  // ?? pour conserver un numéro 0, placeholder GRDF)
+  let numeroPart = normalizeForPhoto(String(infos.numero ?? ''));
   if (!numeroPart) {
     numeroPart = 'SN';
   }
@@ -44,23 +45,26 @@ export function nomPhoto(infos, index) {
  * - Remplace les caractères non alphanumériques par des tirets
  * - Réduit les tirets multiples
  * - Supprime les tirets en début/fin
+ *
+ * @param {string} text - Texte à normaliser
+ * @returns {string} Texte normalisé ('' si vide)
  */
 function normalizeForPhoto(text) {
   if (!text) return '';
 
-  // NFD decompose accents, then remove diacritical marks
+  // Décomposition NFD des accents, puis suppression des marques diacritiques
   let normalized = text
     .normalize('NFD')
     .replace(/[\p{Diacritic}]/gu, '')
     .toUpperCase();
 
-  // Replace chars outside [A-Z0-9] with dash
+  // Remplace les caractères hors [A-Z0-9] par des tirets
   normalized = normalized.replace(/[^A-Z0-9]/g, '-');
 
-  // Collapse multiple dashes
+  // Réduit les tirets multiples
   normalized = normalized.replace(/-+/g, '-');
 
-  // Trim leading/trailing dashes
+  // Supprime les tirets en début/fin
   normalized = normalized.replace(/^-+|-+$/g, '');
 
   return normalized;

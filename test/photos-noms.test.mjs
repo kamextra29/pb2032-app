@@ -22,6 +22,8 @@ test('cas particuliers', () => {
 
 test('entrées numériques (valeurs brutes Excel)', () => {
   assert.equal(nomPhoto({ numero: 4, rue: 'X', pce: 12200144633562 }, 1), '4_X_12200144633562_1.jpg');
+  // numéro 0 (placeholder GRDF) → '0', pas 'SN'
+  assert.equal(nomPhoto({ numero: 0, rue: 'X', pce: '1' }, 1), '0_X_1_1.jpg');
 });
 
 test('aucun identifiant → erreur explicite', () => {
