@@ -51,3 +51,28 @@ test('formule V : accessoires vides ou inconnus → à renseigner', () => {
   assert.equal(calculerPression('', '', refListes), 'à renseigner');
   assert.equal(calculerPression('autre valeur', 'PBDI', refListes), 'à renseigner');
 });
+
+import { calculerStatuts, calculerCompletude } from '../js/core/regles.js';
+
+// valeurs(b) = fusion valeursClient + saisies (la saisie prime) — helper interne au module
+test('statuts : à faire / identifié / reporté cumulables', () => {
+  assert.deepEqual(calculerStatuts({ valeursClient: {}, saisies: {}, ajoute: false }),
+    { aFaire: true, identifie: false, reporte: false, pointArret: false, diTechnique: false, ajoute: false });
+  // pré-identifié par le client (O renseigné côté client)
+  const preIdent = { valeursClient: { constatCoffret: 'Bien positionné (< 10cm)' }, saisies: {}, ajoute: false };
+  assert.equal(calculerStatuts(preIdent).identifie, true);
+  assert.equal(calculerStatuts(preIdent).aFaire, false);
+  // AG=1 suffit ; reporté et identifié cumulables
+  const s = calculerStatuts({ valeursClient: {}, saisies: { identificationPb: 1, typeReport: 'Détection sans coupure, levé et report' }, ajoute: false });
+  assert.ok(s.identifie && s.reporte);
+  assert.equal(calculerStatuts({ valeursClient: {}, saisies: { pointArret: 'Robinet non démontable' }, ajoute: false }).pointArret, true);
+});
+
+test('complétude : O,P,Q,S,T requis ; U si DPBE ; R si PE', () => {
+  const base = { constatCoffret: 'x', constatBrt: 'x', matiere: 'Ac', accessoires: 'x', bague: 'NON' };
+  assert.deepEqual(calculerCompletude(base), { complets: 5, requis: 5 });
+  assert.deepEqual(calculerCompletude({ ...base, bague: 'DPBE' }), { complets: 5, requis: 6 });          // U manque
+  assert.deepEqual(calculerCompletude({ ...base, bague: 'DPBE', longueurSonde: 2.5 }), { complets: 6, requis: 6 });
+  assert.deepEqual(calculerCompletude({ ...base, matiere: 'PE' }), { complets: 5, requis: 6 });          // R manque
+  assert.deepEqual(calculerCompletude({}), { complets: 0, requis: 5 });
+});
