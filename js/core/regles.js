@@ -22,7 +22,7 @@
  *
  * @param {*} a - Première valeur (sera convertie en string)
  * @param {*} b - Deuxième valeur (sera convertie en string)
- * @returns {number} -1 si a < b, 0 si a === b, 1 si a > b
+ * @returns {number} négatif si a avant b, 0 si équivalents, positif si a après b
  */
 export function comparerNumeros(a, b) {
   // Convertir en string et trimmer
@@ -54,11 +54,11 @@ export function comparerNumeros(a, b) {
     // Même numérique: comparer les suffixes alphabétiquement
     const suffixA = matchA[2];
     const suffixB = matchB[2];
-    return suffixA.localeCompare(suffixB);
+    return suffixA.localeCompare(suffixB, 'fr');
   }
 
   // Aucun n'a de numérique: ordre alphabétique
-  return aStr.localeCompare(bStr);
+  return aStr.localeCompare(bStr, 'fr');
 }
 
 /**
