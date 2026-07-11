@@ -21,6 +21,8 @@
 
 import { echapperHtml } from './ui/dom.js';
 import * as dossier from './ui/dossier.js';
+import * as accueil from './ui/accueil.js';
+import * as recherche from './ui/recherche.js';
 
 const conteneur = document.getElementById('ecran');
 
@@ -36,8 +38,8 @@ function stub(titre) {
 }
 
 const ECRANS = {
-  accueil: stub('Accueil'),
-  recherche: stub('Rechercher'),
+  accueil: accueil.monter,
+  recherche: recherche.monter,
   fiche: async (conteneur, id) => stub(id ? `Fiche ${id}` : 'Fiche')(conteneur),
   ajout: stub('Ajouter un branchement'),
   dossier: dossier.monter,
