@@ -80,6 +80,8 @@ test('tri intelligent des numéros', () => {
   assert.deepEqual([...nums].sort(comparerNumeros), ['2', '4', '4A', '4B', '11', 'SN?', '']);
   // partie numérique d'abord (2 < 4 < 11), suffixe alphabétique ensuite,
   // non-numériques après en ordre alphabétique, vides en dernier
+  assert.deepEqual([null, '2', undefined, ''].sort(comparerNumeros).slice(0, 1), ['2']);
+  // null/undefined/'' = absents → tous en fin de tri
 });
 
 test('normalisation pour recherche : accents, casse, espaces multiples', () => {

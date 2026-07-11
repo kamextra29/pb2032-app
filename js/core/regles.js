@@ -17,6 +17,8 @@
  * 2. Numérique: compare les entiers, puis les suffixes alphabétiquement
  * 3. Non-numérique: ordre alphabétique
  * 4. Chaîne vide toujours en dernier
+ * null/undefined sont traités comme des valeurs vides et trient en dernier
+ * (cellule Excel absente = pas de numéro).
  *
  * @param {*} a - Première valeur (sera convertie en string)
  * @param {*} b - Deuxième valeur (sera convertie en string)
