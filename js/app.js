@@ -1,33 +1,47 @@
 // Mini-routeur par hash : #accueil, #recherche, #fiche/<id>, #ajout, #dossier.
-// Pour l'instant, chaque écran est un stub « à venir ».
+//
+// Contrat d'écran : chaque écran est une fonction `async monter(conteneur, parametre)`
+// qui remplit `conteneur` et peut retourner une fonction `demonter()` de nettoyage
+// (arrêt d'un flux caméra, retrait d'écouteurs de worker, etc.). Le routeur attend
+// la fin du montage, conserve `demonter` et l'appelle avant de monter l'écran suivant.
+
+import { echapperHtml } from './ui/dom.js';
 
 const conteneur = document.getElementById('ecran');
 
-const ECRANS = {
-  accueil: () => stub('Accueil'),
-  recherche: () => stub('Rechercher'),
-  fiche: (id) => stub(id ? `Fiche ${id}` : 'Fiche'),
-  ajout: () => stub('Ajouter un branchement'),
-  dossier: () => stub('Dossier'),
-};
-
 function stub(titre) {
-  return `
-    <section class="ecran">
-      <h1>${titre}</h1>
-      <p class="texte-2">À venir.</p>
-    </section>
-  `;
+  return async (conteneur) => {
+    conteneur.innerHTML = `
+      <section class="ecran">
+        <h1>${echapperHtml(titre)}</h1>
+        <p class="texte-2">À venir.</p>
+      </section>
+    `;
+  };
 }
 
-function naviguer() {
+const ECRANS = {
+  accueil: stub('Accueil'),
+  recherche: stub('Rechercher'),
+  fiche: async (conteneur, id) => stub(id ? `Fiche ${id}` : 'Fiche')(conteneur),
+  ajout: stub('Ajouter un branchement'),
+  dossier: stub('Dossier'),
+};
+
+let demonterCourant = null;
+
+async function naviguer() {
   if (!location.hash) {
     history.replaceState(null, '', '#accueil');
   }
-  const [nom, param] = location.hash.replace(/^#\/?/, '').split('/');
-  const cle = nom || 'accueil';
-  const rendu = ECRANS[cle] || ECRANS.accueil;
-  conteneur.innerHTML = rendu(param);
+  const [nom, parametre] = location.hash.replace(/^#\/?/, '').split('/');
+  const cle = nom in ECRANS ? nom : 'accueil';
+  if (typeof demonterCourant === 'function') {
+    demonterCourant();
+  }
+  demonterCourant = null;
+  conteneur.innerHTML = '';
+  demonterCourant = (await ECRANS[cle](conteneur, parametre)) || null;
   marquerNavActive(cle);
 }
 
