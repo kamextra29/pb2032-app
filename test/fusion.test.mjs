@@ -124,6 +124,7 @@ test('conflit : le client a modifié une valeur que le terrain avait corrigée',
 
   assert.equal(rapport.conflits.length, 1);
   const conflit = rapport.conflits[0];
+  assert.equal(conflit.reference, '111');
   assert.equal(conflit.cle, 'nomClient');
   assert.equal(conflit.valeurTerrain, 'DURAND');
   assert.equal(conflit.ancienneValeurClient, 'DUPOND');
@@ -230,6 +231,101 @@ test('repli adresse : numéro texte ("7") vs nombre (7) → correspondance quand
   assert.equal(rapport.rapprochees, 1);
   assert.equal(branchements[0].id, 10);
   assert.deepEqual(branchements[0].saisies, { commentaireIdent: 'ras' });
+});
+
+// 11. PCE renseigné mais introuvable : pas de repli adresse (risque de faux rapprochement)
+test('PCE renseigné mais absent des nouveaux : pas de repli adresse, ancien → orpheline', () => {
+  const ancien = {
+    id: 11,
+    ligne: 4,
+    valeursClient: { insee: '21452', rue: 'RUE DES GENETS', numero: '4', complement: '', nomClient: 'MALLERON', pce: '555555555' },
+    saisies: { constatCoffret: 'Bien positionné (< 10cm)' },
+    ajoute: false,
+    vEnDur: false,
+  };
+  // Même adresse, unique côté nouveaux, mais PCE différent : ne doit PAS matcher
+  const nouveau = {
+    ligne: 4,
+    valeursClient: { insee: '21452', rue: 'RUE DES GENETS', numero: '4', complement: '', nomClient: 'MALLERON', pce: '666666666' },
+    vEnDur: false,
+  };
+
+  const { branchements, rapport } = fusionner([ancien], [nouveau]);
+
+  assert.equal(rapport.rapprochees, 0);
+  const orpheline = branchements.find(b => b.orpheline === true);
+  assert.ok(orpheline, 'l\'ancien doit devenir orpheline, sans repli adresse');
+  assert.equal(orpheline.id, 11);
+  assert.deepEqual(orpheline.saisies, { constatCoffret: 'Bien positionné (< 10cm)' });
+  assert.equal(rapport.disparues.length, 1);
+  assert.equal(rapport.nouvelles.length, 1);
+});
+
+// 12. Ancien normal et ajout en concurrence sur le même PCE nouveau : le normal gagne
+test('ancien normal et ajout en concurrence sur le même PCE : le normal gagne, l\'ajout est conservé', () => {
+  const ancienNormal = {
+    id: 12,
+    ligne: 4,
+    valeursClient: { pce: '777777777', nomClient: 'MALLERON' },
+    saisies: { constatCoffret: 'Bien positionné (< 10cm)' },
+    ajoute: false,
+    vEnDur: false,
+  };
+  const ajout = {
+    id: 112,
+    ajoute: true,
+    ajoutId: 3,
+    valeursClient: {},
+    saisies: { rue: 'RUE NEUVE', numero: '9', pce: '777777777' },
+    vEnDur: false,
+  };
+  const nouveau = { ligne: 4, valeursClient: { pce: '777777777', nomClient: 'MALLERON' }, vEnDur: false };
+
+  const { branchements, rapport } = fusionner([ancienNormal, ajout], [nouveau]);
+
+  assert.equal(rapport.rapprochees, 1);
+  const rapproche = branchements.find(b => b.id === 12);
+  assert.ok(rapproche, 'le normal doit gagner le rapprochement');
+  assert.equal(rapproche.ajoute, false);
+  assert.deepEqual(rapproche.saisies, { constatCoffret: 'Bien positionné (< 10cm)' });
+  const ajoutConserve = branchements.find(b => b.id === 112);
+  assert.ok(ajoutConserve, 'l\'ajout doit être conservé');
+  assert.equal(ajoutConserve.ajoute, true);
+  assert.deepEqual(ajoutConserve.saisies, ajout.saisies);
+});
+
+// 13. PCE dupliqué parmi les anciens : le premier gagne, le second devient orpheline
+test('PCE dupliqué parmi les anciens : le premier gagne, le second → orpheline, saisies conservées', () => {
+  const premier = {
+    id: 13,
+    ligne: 4,
+    valeursClient: { pce: '888888888', nomClient: 'PREMIER' },
+    saisies: { constatCoffret: 'Bien positionné (< 10cm)' },
+    ajoute: false,
+    vEnDur: false,
+  };
+  const second = {
+    id: 14,
+    ligne: 5,
+    valeursClient: { pce: '888888888', nomClient: 'SECOND' },
+    saisies: { commentaireIdent: 'doublon PCE' },
+    ajoute: false,
+    vEnDur: false,
+  };
+  const nouveau = { ligne: 4, valeursClient: { pce: '888888888', nomClient: 'PREMIER' }, vEnDur: false };
+
+  const { branchements, rapport } = fusionner([premier, second], [nouveau]);
+
+  assert.equal(rapport.rapprochees, 1);
+  const gagnant = branchements.find(b => b.id === 13);
+  assert.ok(gagnant, 'le premier ancien doit être rapproché');
+  assert.deepEqual(gagnant.saisies, { constatCoffret: 'Bien positionné (< 10cm)' });
+  const orpheline = branchements.find(b => b.id === 14);
+  assert.ok(orpheline, 'le second ancien doit être conservé');
+  assert.equal(orpheline.orpheline, true);
+  assert.deepEqual(orpheline.saisies, { commentaireIdent: 'doublon PCE' });
+  assert.equal(rapport.disparues.length, 1);
+  assert.equal(rapport.disparues[0].nbSaisies, 1);
 });
 
 // Format du résumé utilisé dans les rapports (nouvelles/disparues)

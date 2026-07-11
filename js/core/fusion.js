@@ -16,6 +16,8 @@
  *   deviennent des « nouvelles ». Symétriquement, si la même clé de repli
  *   est partagée par plusieurs anciennes lignes, aucune d'elles n'est
  *   rapprochée automatiquement non plus.
+ * - PCE renseigné mais introuvable → pas de repli adresse (risque de faux
+ *   rapprochement) ; la ligne devient orpheline, réconciliable manuellement.
  * - Les branchements ajoutés dans l'app (`ajoute: true`) sont conservés tels
  *   quels, sauf si le PCE saisi (`saisies.pce`) apparaît désormais dans le
  *   nouveau fichier : ils sont alors rapprochés de la ligne client
@@ -100,10 +102,10 @@ function indexerParCle(lignes, fnCle) {
  *
  * @param {object} ancien - Ancien branchement (avec `saisies` et `valeursClient`)
  * @param {object} nouveau - Nouvelle ligne correspondante (avec `valeursClient`)
- * @param {?string} identifiant - Identifiant à reporter (PCE normalisé ou clé de repli)
- * @returns {object[]} Conflits `{pce, cle, valeurTerrain, ancienneValeurClient, nouvelleValeurClient}`
+ * @param {?string} reference - PCE normalisé, ou clé d'adresse composite pour les correspondances par repli
+ * @returns {object[]} Conflits `{reference, cle, valeurTerrain, ancienneValeurClient, nouvelleValeurClient}`
  */
-function detecterConflits(ancien, nouveau, identifiant) {
+function detecterConflits(ancien, nouveau, reference) {
   const conflits = [];
   const saisies = ancien.saisies || {};
   const valeursClientAnciennes = ancien.valeursClient || {};
@@ -112,7 +114,7 @@ function detecterConflits(ancien, nouveau, identifiant) {
     const nouvelleValeurClient = nouveau.valeursClient[cle];
     if (nouvelleValeurClient !== ancienneValeurClient) {
       conflits.push({
-        pce: identifiant,
+        reference,
         cle,
         valeurTerrain: saisies[cle],
         ancienneValeurClient,
@@ -171,8 +173,8 @@ export function fusionner(anciens, nouveaux) {
 
     if (nouveau) {
       lignesApparies.add(nouveau.ligne);
-      const identifiant = clePce ?? clePceDe(nouveau.valeursClient) ?? cleRepliDe(nouveau.valeursClient);
-      rapport.conflits.push(...detecterConflits(ancien, nouveau, identifiant));
+      const reference = clePce ?? clePceDe(nouveau.valeursClient) ?? cleRepliDe(nouveau.valeursClient);
+      rapport.conflits.push(...detecterConflits(ancien, nouveau, reference));
       branchements.push({
         ligne: nouveau.ligne,
         valeursClient: nouveau.valeursClient,
