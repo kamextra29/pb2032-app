@@ -277,7 +277,7 @@ const DERNIERE_LIGNE_TABLE = 20;
 // Feuille 2 : Protection Branchements 2032 (le tableau terrain).
 // ---------------------------------------------------------------------------
 
-function buildSheet2Xml(ss) {
+function buildSheet2Xml(ss, lignesVides = 0) {
   const cellules = [];
 
   // Ligne 1 : gros en-têtes de zone fusionnés.
@@ -326,7 +326,14 @@ function buildSheet2Xml(ss) {
     }
   }
 
-  const sheetData = `<sheetData>${assemblerLignes(cellules)}</sheetData>`;
+  // Lignes vides supplémentaires APRÈS la fin du tableau (test d'échelle
+  // Task 9) : volontairement hors de la ref du tableau et des sqref de
+  // validation — leur seul rôle est de donner au writer un volume de <row>
+  // réaliste (~25 000 dans le vrai fichier), avec la même forme que les
+  // lignes vides pré-formatées (41 cellules, formules V/AB). Avec
+  // lignesVides = 0 (défaut), pas un octet de la fixture ne change.
+  const sheetData =
+    `<sheetData>${assemblerLignes(cellules)}${lignesVidesXml(lignesVides)}</sheetData>`;
 
   const fusions = ['A1:K1', 'O1:AD1', 'AH1:AO1', 'O2:X2', 'Y2:AD2', 'AH2:AO2'];
   const mergeCells =
@@ -378,6 +385,28 @@ function buildSheet2Xml(ss) {
     extLst +
     '</worksheet>'
   );
+}
+
+/** Blocs <row> vides formatés au-delà du tableau (lignes 21..20+n), en une chaîne. */
+function lignesVidesXml(nombre) {
+  if (nombre <= 0) return '';
+  const vFormuleEchappee = esc(V_FORMULE);
+  const morceaux = [];
+  for (let row = DERNIERE_LIGNE_TABLE + 1; row <= DERNIERE_LIGNE_TABLE + nombre; row++) {
+    let cellulesXml = '';
+    for (const colonne of COLONNES) {
+      const style = DATA_STYLE_PAR_ZONE[colonne.zone];
+      if (colonne.lettre === 'V') {
+        cellulesXml += `<c r="V${row}" s="${style}"><f>${vFormuleEchappee}</f></c>`;
+      } else if (colonne.lettre === 'AB') {
+        cellulesXml += `<c r="AB${row}" s="${style}"><f>${esc(formuleAB(row))}</f></c>`;
+      } else {
+        cellulesXml += `<c r="${colonne.lettre}${row}" s="${style}"/>`;
+      }
+    }
+    morceaux.push(`<row r="${row}">${cellulesXml}</row>`);
+  }
+  return morceaux.join('');
 }
 
 function validationStandard(formule, sqref) {
@@ -678,16 +707,19 @@ function buildDocPropsApp() {
 
 /**
  * Construit la fixture .xlsx synthétique en mémoire.
+ * @param {object} [options]
+ * @param {number} [options.lignesVides=0] - Lignes vides formatées ajoutées
+ *   APRÈS le tableau (test d'échelle du writer, Task 9). 0 = fixture inchangée.
  * @returns {Promise<Uint8Array>} Octets du fichier .xlsx (zip DEFLATE).
  */
-export async function buildFixture() {
+export async function buildFixture({ lignesVides = 0 } = {}) {
   const ss = new SharedStrings();
 
   // L'ordre d'appel des builders détermine l'ordre des chaînes dans
   // sharedStrings.xml ; sans conséquence fonctionnelle, on garde l'ordre des
   // feuilles (1, 2, 3) par lisibilité.
   const sheet1Xml = buildSheet1Xml(ss);
-  const sheet2Xml = buildSheet2Xml(ss);
+  const sheet2Xml = buildSheet2Xml(ss, lignesVides);
   const sheet3Xml = buildSheet3Xml(ss);
   const sharedStringsXml = ss.xml();
 
