@@ -4,8 +4,20 @@
 // qui remplit `conteneur` et peut retourner une fonction `demonter()` de nettoyage
 // (arrêt d'un flux caméra, retrait d'écouteurs de worker, etc.). Le routeur attend
 // la fin du montage, conserve `demonter` et l'appelle avant de monter l'écran suivant.
+//
+// Convention async-mount (à respecter dans tout écran de js/ui/*) : faire TOUS
+// les `await` nécessaires à la décision du contenu initial (chargement IndexedDB,
+// etc.) AVANT la toute première écriture dans `conteneur` — jamais de rendu
+// intermédiaire vide suivi d'un remplacement (flash visuel), et surtout jamais
+// d'écriture DOM après un `await` sans revérifier qu'une navigation plus récente
+// n'a pas déjà pris la main (voir le jeton `monJeton`/`jeton` ci-dessous, et son
+// équivalent local `etat.actif` dans js/ui/dossier.js). Une fois ce premier rendu
+// posé, les mises à jour déclenchées ensuite par l'utilisateur ou par un worker
+// (barre de progression, etc.) sont sûres tant qu'elles vérifient elles aussi ce
+// jeton avant d'écrire dans le DOM.
 
 import { echapperHtml } from './ui/dom.js';
+import * as dossier from './ui/dossier.js';
 
 const conteneur = document.getElementById('ecran');
 
@@ -25,7 +37,7 @@ const ECRANS = {
   recherche: stub('Rechercher'),
   fiche: async (conteneur, id) => stub(id ? `Fiche ${id}` : 'Fiche')(conteneur),
   ajout: stub('Ajouter un branchement'),
-  dossier: stub('Dossier'),
+  dossier: dossier.monter,
 };
 
 let demonterCourant = null;

@@ -91,6 +91,42 @@ label { font-size: 0.9rem; color: var(--texte-2); display: block; margin-bottom:
   border: 1px solid var(--bord);
   border-radius: 14px;
   padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rangee-boutons {
+  display: flex;
+  gap: 8px;
+}
+.rangee-boutons button { flex: 1; }
+
+.barre-progression {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--fond);
+  border: 1px solid var(--bord);
+  overflow: hidden;
+}
+.barre-progression-remplie {
+  height: 100%;
+  background: var(--accent-fonce);
+  border-radius: 6px 0 0 6px;
+  transition: width 0.2s ease;
+}
+
+.bloc-erreur {
+  background: color-mix(in srgb, var(--danger) 12%, var(--carte));
+  border-color: var(--danger);
+  color: var(--texte);
+}
+.bloc-erreur h2 { color: var(--danger); font-size: 1rem; }
+.bloc-erreur ul { margin: 0; padding-left: 20px; }
+
+.bloc-avertissement {
+  background: color-mix(in srgb, var(--ecart) 12%, var(--carte));
+  border-color: var(--ecart);
 }
 
 .barre-bas {

@@ -152,6 +152,42 @@ export function calculerStatuts(b) {
 }
 
 /**
+ * Calcule la synthèse d'un dossier après import (§7.1) : nombre total de
+ * branchements, nombre de communes et de rues distinctes (couple
+ * commune+rue, normalisé pour tolérer accents/casse/espaces), et nombre de
+ * branchements déjà identifiés / reportés (via calculerStatuts, valeurs
+ * client comprises).
+ *
+ * @param {object[]} branchements - Branchements au format store (valeursClient, saisies, ajoute)
+ * @returns {{nb: number, nbCommunes: number, nbRues: number, identifies: number, reportes: number}}
+ */
+export function calculerSynthese(branchements) {
+  const communes = new Set();
+  const rues = new Set();
+  let identifies = 0;
+  let reportes = 0;
+
+  for (const b of branchements) {
+    const commune = normaliser(valeurEffective(b, 'commune'));
+    const rue = normaliser(valeurEffective(b, 'rue'));
+    communes.add(commune);
+    rues.add(`${commune}|${rue}`);
+
+    const statuts = calculerStatuts(b);
+    if (statuts.identifie) identifies++;
+    if (statuts.reporte) reportes++;
+  }
+
+  return {
+    nb: branchements.length,
+    nbCommunes: communes.size,
+    nbRues: rues.size,
+    identifies,
+    reportes,
+  };
+}
+
+/**
  * Calcule la complétude d'un branchement.
  *
  * @param {object} valeursEffectives - Objet plat des valeurs effectives

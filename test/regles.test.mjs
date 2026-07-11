@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { COLONNES, lettreVersIndex, indexVersLettre, ZONES } from '../js/core/colonnes.js';
-import { calculerPression, calculerStatuts, calculerCompletude, comparerNumeros, normaliser } from '../js/core/regles.js';
+import { calculerPression, calculerStatuts, calculerCompletude, comparerNumeros, normaliser, calculerSynthese } from '../js/core/regles.js';
 
 test('carte des colonnes', () => {
   assert.equal(COLONNES.length, 41);
@@ -89,4 +89,18 @@ test('normalisation pour recherche : accents, casse, espaces multiples', () => {
   assert.equal(normaliser('  Rue des GENÊTS '), 'rue des genets');
   assert.equal(normaliser('N°'), 'n°');
   assert.equal(normaliser(12200144633562), '12200144633562'); // les valeurs numériques passent
+});
+
+test('synthese : comptes de branchements, communes, rues, identifies, reportes', () => {
+  const branchements = [
+    { valeursClient: { commune: 'NEUILLY CRIMOLOIS', rue: 'RUE DES GENETS' }, saisies: {}, ajoute: false },
+    { valeursClient: { commune: 'NEUILLY CRIMOLOIS', rue: 'RUE DES GENETS' }, saisies: {}, ajoute: false },
+    { valeursClient: { commune: 'NEUILLY CRIMOLOIS', rue: 'RUE DE LA GENTIANE' }, saisies: {}, ajoute: false },
+    { valeursClient: { commune: 'NEUILLY LES DIJON', rue: "RUE DE L'ÉGLISE" }, saisies: {}, ajoute: false },
+    // pré-identifiée côté client (O renseigné)
+    { valeursClient: { commune: 'NEUILLY CRIMOLOIS', rue: 'RUE DES GENETS', constatCoffret: 'Bien positionné (< 10cm)' }, saisies: {}, ajoute: false },
+    // reportée par une saisie terrain
+    { valeursClient: { commune: 'NEUILLY CRIMOLOIS', rue: 'RUE DES GENETS' }, saisies: { typeReport: 'Détection sans coupure, levé et report' }, ajoute: false },
+  ];
+  assert.deepEqual(calculerSynthese(branchements), { nb: 6, nbCommunes: 2, nbRues: 3, identifies: 1, reportes: 1 });
 });
