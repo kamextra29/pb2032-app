@@ -1,0 +1,129 @@
+:root {
+  --fond: #12161c;
+  --carte: #1c222b;
+  --texte: #e8eaed;
+  --texte-2: #9aa4b2;
+  --bord: #333c48;
+  --accent: #4da3ff;
+  --accent-fonce: #1f6fd1;
+  --ok: #5fbf6b;
+  --ecart: #e0a83f;
+  --danger: #f0645f;
+}
+
+* { box-sizing: border-box; }
+
+html { font-size: 16px; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--texte);
+  background: var(--fond);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#ecran {
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ecran {
+  padding: 16px 16px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 600; }
+h1 { font-size: 1.3rem; }
+h2 { font-size: 1.1rem; }
+h3 { font-size: 1rem; }
+
+p { margin: 0; line-height: 1.4; }
+.texte-2 { color: var(--texte-2); }
+
+button, .bouton {
+  font: inherit;
+  color: inherit;
+  background: var(--carte);
+  border: 1px solid var(--bord);
+  border-radius: 12px;
+  min-height: 48px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+button:active, .bouton:active { transform: scale(0.97); }
+
+input, textarea, select {
+  font: inherit;
+  color: inherit;
+  background: var(--carte);
+  border: 1px solid var(--bord);
+  border-radius: 12px;
+  min-height: 48px;
+  padding: 10px 14px;
+  width: 100%;
+}
+input:focus, textarea:focus, select:focus, button:focus-visible, .bouton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+textarea { resize: none; min-height: 48px; }
+
+label { font-size: 0.9rem; color: var(--texte-2); display: block; margin-bottom: 4px; }
+
+.btn-primaire {
+  background: var(--accent-fonce);
+  border-color: var(--accent-fonce);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn-danger { color: var(--danger); border-color: var(--danger); }
+
+.carte {
+  background: var(--carte);
+  border: 1px solid var(--bord);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.barre-bas {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  max-width: 720px;
+  margin: 0 auto;
+  background: var(--carte);
+  border-top: 1px solid var(--bord);
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+}
+.barre-bas a {
+  flex: 1;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+  color: var(--texte);
+  background: transparent;
+  border: 1px solid var(--bord);
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.barre-bas a.actif {
+  background: var(--accent-fonce);
+  border-color: var(--accent-fonce);
+  color: #fff;
+}
