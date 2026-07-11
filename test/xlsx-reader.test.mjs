@@ -74,6 +74,19 @@ test('colonne V : valeur en dur lue, formule sans <v> absente de valeursClient',
   assert.equal(branchements[4].valeursClient.pression, 'MPB');
 });
 
+test('onglet Listes manquant : erreur bloquante explicite', async () => {
+  const zip = await JSZip.loadAsync(await buildFixture());
+  zip.remove('xl/worksheets/sheet3.xml'); // la feuille Listes de la fixture
+  const octets = await zip.generateAsync({ type: 'uint8array' });
+
+  const { dossier, branchements, erreurs } = await lireFichier(octets);
+  assert.equal(dossier, null);
+  assert.equal(branchements, null);
+  assert.equal(erreurs.length, 1);
+  assert.match(erreurs[0], /Listes/);
+  assert.match(erreurs[0], /introuvable/);
+});
+
 test('arrêt après 50 lignes vides consécutives : une donnée plus loin est ignorée', async () => {
   // La fixture ne contient que 9 lignes vides formatées (12-20). On en greffe assez
   // (via manipulation directe du zip, sans reconstruire tout build-fixture.mjs) pour

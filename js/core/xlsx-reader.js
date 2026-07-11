@@ -79,13 +79,19 @@ export async function lireFichier(octets) {
     return { dossier: null, branchements: null, erreurs: erreursEntete };
   }
 
-  // Feuille Listes : nécessaire pour résoudre les plages nommées et la validation x14.
+  // Feuille Listes : nécessaire pour résoudre les plages nommées et la validation
+  // x14 — son absence est une erreur bloquante (l'app ne peut pas fonctionner
+  // sans les listes déroulantes ni les références de la formule V).
   const cheminFeuilleListes = feuilles.get('Listes');
-  let grilleListes = new Map();
-  if (cheminFeuilleListes) {
-    const listesXml = await lireEntreeTexte(zip, cheminFeuilleListes);
-    if (listesXml) grilleListes = construireGrille(listesXml, sharedStrings);
+  const listesXml = cheminFeuilleListes ? await lireEntreeTexte(zip, cheminFeuilleListes) : null;
+  if (listesXml === null) {
+    return {
+      dossier: null,
+      branchements: null,
+      erreurs: ['Onglet « Listes » introuvable : les listes déroulantes ne peuvent pas être chargées.'],
+    };
   }
+  const grilleListes = construireGrille(listesXml, sharedStrings);
 
   const definedNames = litDefinedNames(workbookXml);
 
@@ -129,7 +135,7 @@ async function lireEntreeTexte(zip, chemin) {
  * @param {string} xml - Contenu de xl/sharedStrings.xml.
  * @returns {string[]} Chaînes indexées par leur position dans le fichier.
  */
-export function litSharedStrings(xml) {
+function litSharedStrings(xml) {
   const valeurs = [];
   const reSi = /<si>([\s\S]*?)<\/si>/g;
   let matchSi;
@@ -151,28 +157,51 @@ export function litSharedStrings(xml) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Parse les balises `<Relationship>` d'un fichier .rels, en extrayant chaque
+ * attribut indépendamment : l'ordre des attributs XML n'est pas garanti (un
+ * fichier réenregistré par LibreOffice ou un autre outil peut les inverser).
+ * @param {string} relsXml - Contenu d'un fichier _rels/*.rels.
+ * @returns {Array<{id: string|undefined, target: string|undefined}>}
+ */
+function litRelations(relsXml) {
+  const relations = [];
+  const reRel = /<Relationship\b([^>]*?)\/?>/g;
+  let match;
+  while ((match = reRel.exec(relsXml)) !== null) {
+    const attributs = match[1];
+    const id = /\bId="([^"]*)"/.exec(attributs)?.[1];
+    const targetBrut = /\bTarget="([^"]*)"/.exec(attributs)?.[1];
+    const target = targetBrut === undefined ? undefined : deseChapperXml(targetBrut);
+    relations.push({ id, target });
+  }
+  return relations;
+}
+
+/**
  * Associe chaque nom de feuille du classeur à son chemin dans le zip, en passant
  * par les relations (jamais de chemin de feuille codé en dur).
  * @param {string} workbookXml - Contenu de xl/workbook.xml.
  * @param {string} relsXml - Contenu de xl/_rels/workbook.xml.rels.
  * @returns {Map<string, string>} Nom de feuille -> chemin complet dans le zip.
  */
-export function litFeuilles(workbookXml, relsXml) {
+function litFeuilles(workbookXml, relsXml) {
   const idParRelation = new Map();
-  const reRel = /<Relationship\b[^>]*\bId="([^"]+)"[^>]*\bTarget="([^"]+)"[^>]*\/>/g;
-  let matchRel;
-  while ((matchRel = reRel.exec(relsXml)) !== null) {
-    const [, id, target] = matchRel;
+  for (const { id, target } of litRelations(relsXml)) {
+    if (id === undefined || target === undefined) continue;
     // Les cibles des relations du classeur sont relatives à xl/.
     const chemin = target.startsWith('/') ? target.slice(1) : `xl/${target}`;
     idParRelation.set(id, chemin);
   }
 
   const feuilles = new Map();
-  const reSheet = /<sheet\b[^>]*\bname="([^"]*)"[^>]*\br:id="([^"]+)"[^>]*\/>/g;
+  // name / r:id extraits indépendamment : leur ordre dans <sheet> n'est pas garanti.
+  const reSheet = /<sheet\b([^>]*?)\/?>/g;
   let matchSheet;
   while ((matchSheet = reSheet.exec(workbookXml)) !== null) {
-    const [, nomEchappe, rid] = matchSheet;
+    const attributs = matchSheet[1];
+    const nomEchappe = /\bname="([^"]*)"/.exec(attributs)?.[1];
+    const rid = /\br:id="([^"]*)"/.exec(attributs)?.[1];
+    if (nomEchappe === undefined || rid === undefined) continue;
     const chemin = idParRelation.get(rid);
     if (chemin) feuilles.set(deseChapperXml(nomEchappe), chemin);
   }
@@ -184,7 +213,7 @@ export function litFeuilles(workbookXml, relsXml) {
  * @param {string} workbookXml - Contenu de xl/workbook.xml.
  * @returns {Map<string, string>} Nom -> référence brute (ex. 'Listes!$A$2:$A$5').
  */
-export function litDefinedNames(workbookXml) {
+function litDefinedNames(workbookXml) {
   const noms = new Map();
   const re = /<definedName\b[^>]*\bname="([^"]*)"[^>]*>([\s\S]*?)<\/definedName>/g;
   let match;
@@ -208,10 +237,8 @@ async function verifieTablePresente(zip, cheminFeuillePb) {
   if (!relsFeuilleXml) return false;
 
   const chemins = [];
-  const reRel = /<Relationship\b[^>]*\bTarget="([^"]+)"[^>]*\/>/g;
-  let match;
-  while ((match = reRel.exec(relsFeuilleXml)) !== null) {
-    const target = match[1];
+  for (const { target } of litRelations(relsFeuilleXml)) {
+    if (target === undefined) continue;
     const chemin = target.startsWith('/')
       ? target.slice(1)
       : resoudreCheminRelatif(dossierFeuille, target);
@@ -331,6 +358,7 @@ function litLignesDonnees(sheetXml, sharedStrings) {
  * @param {string} sheetXml - Contenu XML de la feuille.
  * @param {(numeroLigne: number, ligneXml: string) => boolean} cb - Callback par ligne.
  */
+// Exporté : le writer chirurgical (Task 9) réutilise ce scanner par bloc <row>.
 export function itereLignes(sheetXml, cb) {
   const debutSheetData = sheetXml.indexOf('<sheetData');
   const finSheetData = sheetXml.indexOf('</sheetData>');
@@ -390,6 +418,7 @@ function extraireBlocLigne(sheetXml, numeroLigne) {
  * @param {string} ligneXml - Bloc XML d'une ligne (avec ou sans balises `<row>`).
  * @returns {Array<{ref: string, col: string, t: string|undefined, v: string|undefined, f: string|undefined, is: string|undefined}>}
  */
+// Exporté : le writer chirurgical (Task 9) réutilise ce parseur de cellules.
 export function litCellules(ligneXml) {
   const cellules = [];
   const reCell = /<c\b([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g;
@@ -432,7 +461,7 @@ export function litCellules(ligneXml) {
  * @param {string[]} sharedStrings - Tableau indexé (voir litSharedStrings).
  * @returns {number|string|undefined}
  */
-export function valeurCellule(cellule, sharedStrings) {
+function valeurCellule(cellule, sharedStrings) {
   if (cellule.t === 'inlineStr') {
     return cellule.is !== undefined ? deseChapperXml(cellule.is) : undefined;
   }
@@ -451,7 +480,12 @@ export function valeurCellule(cellule, sharedStrings) {
   return deseChapperXml(cellule.v);
 }
 
-/** Déséchappe les entités XML de base (&amp; &lt; &gt; &quot; &apos;). */
+/**
+ * Déséchappe les entités XML de base (&amp; &lt; &gt; &quot; &apos;).
+ * Portée volontairement limitée à ces 5 entités nommées : les références
+ * numériques (&#233; etc.) ne sont pas gérées — le fichier client réel n'en
+ * contient pas (Excel écrit l'UTF-8 directement).
+ */
 function deseChapperXml(texte) {
   return texte
     .replace(/&lt;/g, '<')
@@ -492,7 +526,7 @@ function construireGrille(sheetXml, sharedStrings) {
  * @param {Map<string, number|string>} grille - Grille produite par construireGrille.
  * @returns {Array<number|string>}
  */
-export function resoudrePlage(reference, grille) {
+function resoudrePlage(reference, grille) {
   const sansFeuille = reference.includes('!') ? reference.split('!')[1] : reference;
   const parties = sansFeuille.split(':').map(p => p.replace(/\$/g, ''));
   const [colDebut, ligneDebut] = decouperRef(parties[0]);
@@ -533,7 +567,7 @@ function decouperRef(cellRef) {
  * @param {string} colonneCible - Lettre de colonne visée par le `sqref` (ex. 'AH').
  * @returns {string|null} Référence de plage (ex. 'Listes!$R$2:$R$5') ou null si absente.
  */
-export function litX14PlageSource(sheetXml, colonneCible) {
+function litX14PlageSource(sheetXml, colonneCible) {
   const debutExtLst = sheetXml.indexOf('<extLst');
   if (debutExtLst === -1) return null;
   const finExtLst = sheetXml.indexOf('</extLst>', debutExtLst);
@@ -582,6 +616,8 @@ function construireListes(definedNames, grilleListes, sheetXml, branchements) {
 
   return {
     constatCoffret: plage('COFFRET'),
+    // P et AJ partagent la même plage nommée BRT dans le fichier client
+    // (même liste source, pas un copier-coller raté).
     constatBrt: plage('BRT'),
     classeBrt: plage('BRT'),
     matiere,
@@ -595,6 +631,8 @@ function construireListes(definedNames, grilleListes, sheetXml, branchements) {
     typeReport,
     typeClient: plage('TYPE_CLIENT'),
     phaseTerrain,
+    // AG et AM partagent la même plage nommée VALEUR = {1} dans le fichier client
+    // (même liste source, pas un copier-coller raté).
     identificationPb: plage('VALEUR'),
     ajoutNumero: plage('VALEUR'),
   };
