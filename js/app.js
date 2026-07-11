@@ -1,20 +1,23 @@
 // Mini-routeur par hash : #accueil, #recherche, #fiche/<id>, #ajout, #dossier.
 //
-// Contrat d'écran : chaque écran est une fonction `async monter(conteneur, parametre)`
-// qui remplit `conteneur` et peut retourner une fonction `demonter()` de nettoyage
-// (arrêt d'un flux caméra, retrait d'écouteurs de worker, etc.). Le routeur attend
-// la fin du montage, conserve `demonter` et l'appelle avant de monter l'écran suivant.
+// Contrat d'écran : chaque écran est une fonction
+// `async monter(conteneur, parametre, estActif)` qui remplit `conteneur` et peut
+// retourner une fonction `demonter()` de nettoyage (arrêt d'un flux caméra,
+// retrait d'écouteurs de worker, etc.). Le routeur attend la fin du montage,
+// conserve `demonter` et l'appelle avant de monter l'écran suivant.
 //
 // Convention async-mount (à respecter dans tout écran de js/ui/*) : faire TOUS
 // les `await` nécessaires à la décision du contenu initial (chargement IndexedDB,
 // etc.) AVANT la toute première écriture dans `conteneur` — jamais de rendu
-// intermédiaire vide suivi d'un remplacement (flash visuel), et surtout jamais
-// d'écriture DOM après un `await` sans revérifier qu'une navigation plus récente
-// n'a pas déjà pris la main (voir le jeton `monJeton`/`jeton` ci-dessous, et son
-// équivalent local `etat.actif` dans js/ui/dossier.js). Une fois ce premier rendu
-// posé, les mises à jour déclenchées ensuite par l'utilisateur ou par un worker
-// (barre de progression, etc.) sont sûres tant qu'elles vérifient elles aussi ce
-// jeton avant d'écrire dans le DOM.
+// intermédiaire vide suivi d'un remplacement (flash visuel). Pour les écrans à
+// await avant premier rendu : le routeur passe en 3ᵉ argument un rappel vivant
+// `estActif()` (il relit le jeton du routeur à chaque appel) — vérifier
+// estActif() après chaque await avant d'écrire dans conteneur, et abandonner
+// silencieusement si une navigation plus récente a pris la main. Une fois ce
+// premier rendu posé, les mises à jour déclenchées ensuite par l'utilisateur ou
+// par un worker (barre de progression, etc.) sont sûres tant qu'elles vérifient
+// elles aussi un jeton (ex. `etat.actif` dans js/ui/dossier.js, invalidé par
+// `demonter()`) avant d'écrire dans le DOM.
 
 import { echapperHtml } from './ui/dom.js';
 import * as dossier from './ui/dossier.js';
@@ -57,7 +60,7 @@ async function naviguer() {
   conteneur.innerHTML = '';
   let demonter = null;
   try {
-    demonter = (await ECRANS[cle](conteneur, parametre)) || null;
+    demonter = (await ECRANS[cle](conteneur, parametre, () => monJeton === jeton)) || null;
   } catch (erreur) {
     if (monJeton !== jeton) return; // une navigation plus récente a pris la main
     conteneur.innerHTML = `

@@ -10,10 +10,15 @@
  * déclenchées ensuite par l'utilisateur (progression d'import, etc.) sont
  * sûres après ce premier rendu.
  *
- * Garde-fou navigation : `monter()` peut être abandonné en cours de route si
- * l'utilisateur navigue ailleurs pendant un `await` (chargement initial ou
- * import en cours). Un jeton local (`etat.actif`) est vérifié après chaque
- * `await` avant toute écriture DOM ; `demonter()` le invalide.
+ * Garde-fou navigation, en deux temps :
+ * - pendant le montage initial : `estActif()` (rappel vivant fourni par le
+ *   routeur, cf. convention dans js/app.js) est vérifié après chaque `await`
+ *   qui précède une écriture DOM — si une navigation plus récente a pris la
+ *   main pendant le `chargerTout()` initial, on abandonne silencieusement
+ *   sans jamais écrire par-dessus l'écran suivant ;
+ * - après le montage : un jeton local (`etat.actif`, invalidé par
+ *   `demonter()`) protège les mises à jour déclenchées ensuite (progression
+ *   d'import, etc.).
  */
 
 import { chargerTout, remplacerDossier } from '../core/store.js';
@@ -21,11 +26,11 @@ import { calculerSynthese } from '../core/regles.js';
 import { demanderImport, ErreurWorker } from './worker-client.js';
 import { echapperHtml } from './dom.js';
 
-export async function monter(conteneur) {
+export async function monter(conteneur, _parametre, estActif = () => true) {
   const etat = { actif: true };
 
   const { dossier, branchements } = await chargerTout();
-  if (!etat.actif) return; // navigation ailleurs pendant le chargement initial
+  if (!estActif() || !etat.actif) return; // navigation ailleurs pendant le chargement initial
 
   if (dossier) {
     afficherDossierExistant(conteneur, etat, dossier, branchements);

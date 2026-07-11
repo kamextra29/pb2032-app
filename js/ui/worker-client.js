@@ -54,15 +54,22 @@ function gererMessage(evenement) {
 
 function obtenirWorker() {
   if (!worker) {
-    worker = new Worker(CHEMIN_WORKER, { type: 'module' });
-    worker.addEventListener('message', gererMessage);
-    worker.addEventListener('error', (evenement) => {
+    const instance = new Worker(CHEMIN_WORKER, { type: 'module' });
+    instance.addEventListener('message', gererMessage);
+    instance.addEventListener('error', (evenement) => {
       // Erreur non interceptée à l'intérieur du worker (ex. module cassé) :
       // impossible de savoir quelle requête précise est en cause — on
       // rejette tout ce qui est en attente pour ne jamais laisser une
       // promesse orpheline (l'appelant resterait bloqué indéfiniment sinon).
       rejeterTout(new Error(`Erreur interne du worker : ${evenement.message || 'inconnue'}.`));
+      // Ce worker est peut-être définitivement cassé (module qui ne se charge
+      // pas, état interne corrompu) : on le termine et on réinitialise le
+      // singleton pour que la prochaine requête reparte d'un worker neuf —
+      // jamais de promesses qui s'accumulent sur un worker mort.
+      instance.terminate();
+      if (worker === instance) worker = null;
     });
+    worker = instance;
   }
   return worker;
 }
@@ -72,7 +79,16 @@ function envoyer(action, charge, transferables, onProgres) {
   const id = prochainId++;
   return new Promise((resolve, reject) => {
     enAttente.set(id, { resolve, reject, onProgres });
-    w.postMessage({ id, action, ...charge }, transferables);
+    try {
+      w.postMessage({ id, action, ...charge }, transferables);
+    } catch (erreur) {
+      // postMessage peut jeter en synchrone (valeur non clonable, ArrayBuffer
+      // déjà détaché…) : l'entrée tout juste posée est retirée pour ne pas
+      // laisser une requête fantôme, puis l'erreur est relancée (un throw
+      // dans l'exécuteur de promesse = rejet de la promesse).
+      enAttente.delete(id);
+      throw erreur;
+    }
   });
 }
 
