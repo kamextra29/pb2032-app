@@ -43,7 +43,11 @@ function promesseRequete(requete) {
 function promesseTransaction(tx) {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    // Pas de rejet sur `onerror` : quand l'événement error remonte jusqu'à la
+    // transaction, `tx.error` n'est pas encore renseigné (spec IndexedDB) et
+    // on rejetterait avec null. Toute erreur non interceptée annule de toute
+    // façon la transaction : `onabort` porte le rejet, avec `tx.error` alors
+    // renseigné (la vraie erreur, p. ex. ConstraintError).
     tx.onabort = () => reject(tx.error ?? new Error('Transaction IndexedDB annulée'));
   });
 }
@@ -115,12 +119,20 @@ export async function remplacerDossier(dossier, branchements) {
   const db = await ouvrir();
   const tx = db.transaction(['dossier', 'branchements', 'photos'], 'readwrite');
 
-  tx.objectStore('dossier').clear();
-  tx.objectStore('branchements').clear();
-  tx.objectStore('photos').clear();
-  tx.objectStore('dossier').put(dossier, 'actif');
-  for (const branchement of branchements) {
-    tx.objectStore('branchements').add(branchement);
+  try {
+    tx.objectStore('dossier').clear();
+    tx.objectStore('branchements').clear();
+    tx.objectStore('photos').clear();
+    tx.objectStore('dossier').put(dossier, 'actif');
+    for (const branchement of branchements) {
+      tx.objectStore('branchements').add(branchement);
+    }
+  } catch (erreur) {
+    // Une valeur non clonable (p. ex. une fonction) fait jeter add()/put()
+    // en synchrone, après que les clear() ont déjà été mis en file : sans
+    // abort explicite, la transaction validerait un état à moitié écrasé.
+    tx.abort();
+    throw new Error(`Remplacement du dossier impossible, rien n'a été modifié : ${erreur.message}`);
   }
 
   await promesseTransaction(tx);

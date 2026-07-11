@@ -195,6 +195,41 @@ test('parametres : ecriture puis lecture', async () => {
   assert.equal(await store.lireParametre('phaseCourante'), 3);
 });
 
+test('une erreur de transaction rejette avec la vraie erreur, jamais null', async () => {
+  // Deux ajouts avec la même clé explicite dans la même transaction →
+  // ConstraintError sur le second. Le rejet doit porter cette erreur
+  // (et non null : tx.error n'est renseigné qu'au moment de l'abort).
+  await store.remplacerDossier(dossierMinimal(), []);
+  await assert.rejects(
+    () => store.remplacerDossier(dossierMinimal(), [
+      { id: 1, ligne: 4, valeursClient: {}, saisies: {}, ajoute: false, vEnDur: false },
+      { id: 1, ligne: 5, valeursClient: {}, saisies: {}, ajoute: false, vEnDur: false },
+    ]),
+    (e) => e != null && e.name === 'ConstraintError',
+  );
+});
+
+test('remplacerDossier avec un branchement non clonable : rejet français ET données précédentes intactes', async () => {
+  await store.remplacerDossier(dossierMinimal({ nom: 'avant.xlsx' }), [
+    { ligne: 4, valeursClient: { pce: 'garde' }, saisies: {}, ajoute: false, vEnDur: false },
+  ]);
+
+  // Une fonction n'est pas clonable par IndexedDB : add() jette en synchrone
+  // au milieu de la boucle, après les clear() déjà mis en file. Sans abort
+  // explicite, la base resterait à moitié écrasée.
+  await assert.rejects(
+    () => store.remplacerDossier(dossierMinimal({ nom: 'apres.xlsx' }), [
+      { ligne: 4, valeursClient: {}, saisies: {}, ajoute: false, vEnDur: false, casse: () => {} },
+    ]),
+    /rien n'a été modifié/,
+  );
+
+  const { dossier, branchements } = await store.chargerTout();
+  assert.equal(dossier.nom, 'avant.xlsx');
+  assert.equal(branchements.length, 1);
+  assert.equal(branchements[0].valeursClient.pce, 'garde');
+});
+
 test('estimerStockage() renvoie null quand navigator.storage est absent (Node)', async () => {
   assert.equal(await store.estimerStockage(), null);
 });
