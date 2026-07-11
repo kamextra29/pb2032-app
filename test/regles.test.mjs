@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { COLONNES, lettreVersIndex, indexVersLettre, ZONES } from '../js/core/colonnes.js';
-import { calculerPression } from '../js/core/regles.js';
+import { calculerPression, calculerStatuts, calculerCompletude, comparerNumeros, normaliser } from '../js/core/regles.js';
 
 test('carte des colonnes', () => {
   assert.equal(COLONNES.length, 41);
@@ -52,8 +52,6 @@ test('formule V : accessoires vides ou inconnus → à renseigner', () => {
   assert.equal(calculerPression('autre valeur', 'PBDI', refListes), 'à renseigner');
 });
 
-import { calculerStatuts, calculerCompletude } from '../js/core/regles.js';
-
 // valeurs(b) = fusion valeursClient + saisies (la saisie prime) — helper interne au module
 test('statuts : à faire / identifié / reporté cumulables', () => {
   assert.deepEqual(calculerStatuts({ valeursClient: {}, saisies: {}, ajoute: false }),
@@ -75,4 +73,17 @@ test('complétude : O,P,Q,S,T requis ; U si DPBE ; R si PE', () => {
   assert.deepEqual(calculerCompletude({ ...base, bague: 'DPBE', longueurSonde: 2.5 }), { complets: 6, requis: 6 });
   assert.deepEqual(calculerCompletude({ ...base, matiere: 'PE' }), { complets: 5, requis: 6 });          // R manque
   assert.deepEqual(calculerCompletude({}), { complets: 0, requis: 5 });
+});
+
+test('tri intelligent des numéros', () => {
+  const nums = ['11', '4B', '2', '4', '', '4A', 'SN?'];
+  assert.deepEqual([...nums].sort(comparerNumeros), ['2', '4', '4A', '4B', '11', 'SN?', '']);
+  // partie numérique d'abord (2 < 4 < 11), suffixe alphabétique ensuite,
+  // non-numériques après en ordre alphabétique, vides en dernier
+});
+
+test('normalisation pour recherche : accents, casse, espaces multiples', () => {
+  assert.equal(normaliser('  Rue des GENÊTS '), 'rue des genets');
+  assert.equal(normaliser('N°'), 'n°');
+  assert.equal(normaliser(12200144633562), '12200144633562'); // les valeurs numériques passent
 });
