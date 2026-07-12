@@ -480,6 +480,53 @@ button:disabled, .bouton:disabled {
   min-width: 160px;
 }
 
+/* Export Excel / export photos / rapport de fusion (Task 17, §8-§10). */
+
+.carte ul {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.carte-succes { border-color: var(--ok); }
+
+.groupe-radio {
+  border: 1px solid var(--bord);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+.groupe-radio legend {
+  padding: 0 4px;
+  color: var(--texte-2);
+  font-size: 0.85rem;
+}
+.groupe-radio label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  color: var(--texte);
+  margin-bottom: 0;
+  cursor: pointer;
+}
+.groupe-radio label:has(input:disabled) {
+  color: var(--texte-2);
+  cursor: not-allowed;
+}
+.groupe-radio input[type="radio"] {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  flex-shrink: 0;
+  accent-color: var(--accent-fonce);
+}
+
 .barre-bas {
   position: fixed;
   bottom: 0;

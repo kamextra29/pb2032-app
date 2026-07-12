@@ -105,11 +105,21 @@ export async function fermer() {
   dbPromise = null;
 }
 
+/** Vide les magasins `dossier`/`branchements` et réécrit leur contenu (partagé par remplacerDossier et remplacerApresFusion). */
+function ecrireDossierEtBranchements(dossier, branchements, tx) {
+  tx.objectStore('dossier').clear();
+  tx.objectStore('branchements').clear();
+  tx.objectStore('dossier').put(dossier, 'actif');
+  for (const branchement of branchements) {
+    tx.objectStore('branchements').add(branchement);
+  }
+}
+
 /**
  * Remplace intégralement le dossier actif et la liste des branchements, en
- * effaçant aussi les photos existantes. Tout se déroule dans une seule
- * transaction : en cas d'erreur, rien n'est modifié (l'ancien dossier
- * n'est jamais laissé à moitié écrasé).
+ * effaçant aussi les photos existantes (repartir de zéro, §7.1 « Remplacer »).
+ * Tout se déroule dans une seule transaction : en cas d'erreur, rien n'est
+ * modifié (l'ancien dossier n'est jamais laissé à moitié écrasé).
  *
  * @param {object} dossier
  * @param {object[]} branchements
@@ -120,13 +130,8 @@ export async function remplacerDossier(dossier, branchements) {
   const tx = db.transaction(['dossier', 'branchements', 'photos'], 'readwrite');
 
   try {
-    tx.objectStore('dossier').clear();
-    tx.objectStore('branchements').clear();
+    ecrireDossierEtBranchements(dossier, branchements, tx);
     tx.objectStore('photos').clear();
-    tx.objectStore('dossier').put(dossier, 'actif');
-    for (const branchement of branchements) {
-      tx.objectStore('branchements').add(branchement);
-    }
   } catch (erreur) {
     // Une valeur non clonable (p. ex. une fonction) fait jeter add()/put()
     // en synchrone, après que les clear() ont déjà été mis en file : sans
@@ -139,10 +144,42 @@ export async function remplacerDossier(dossier, branchements) {
 }
 
 /**
- * Alias de `remplacerDossier`, utilisé après confirmation d'une fusion de
- * réimport (Task 17) : même atomicité, même comportement.
+ * Remplace le dossier actif et les branchements après confirmation d'une
+ * fusion de réimport (§10, Task 17). À la différence de `remplacerDossier`
+ * (« repartir de zéro »), les photos ne sont **pas** effacées en bloc :
+ * `fusionner()` (js/core/fusion.js) préserve l'`id` des branchements
+ * rapprochés et des orphelins, donc leurs photos existantes (liées par
+ * `branchementId`) restent valides sans rien faire. Seules les photos d'un
+ * branchement réellement abandonné par la fusion (disparu du fichier client
+ * ET sans saisie à conserver, donc absent de `branchements`) sont purgées,
+ * pour ne jamais laisser une photo référencer un `branchementId` qui
+ * n'existe plus. Même atomicité que `remplacerDossier`.
+ *
+ * @param {object} dossier
+ * @param {object[]} branchements
+ * @returns {Promise<void>}
  */
-export const remplacerApresFusion = remplacerDossier;
+export async function remplacerApresFusion(dossier, branchements) {
+  const db = await ouvrir();
+  const tx = db.transaction(['dossier', 'branchements', 'photos'], 'readwrite');
+
+  try {
+    ecrireDossierEtBranchements(dossier, branchements, tx);
+
+    const idsConserves = new Set(branchements.map((b) => b.id).filter((id) => id !== undefined));
+    const magasinPhotos = tx.objectStore('photos');
+    magasinPhotos.getAll().onsuccess = (evenement) => {
+      for (const photo of evenement.target.result || []) {
+        if (!idsConserves.has(photo.branchementId)) magasinPhotos.delete(photo.id);
+      }
+    };
+  } catch (erreur) {
+    tx.abort();
+    throw new Error(`Mise à jour impossible, rien n'a été modifié : ${erreur.message}`);
+  }
+
+  await promesseTransaction(tx);
+}
 
 /**
  * Charge le dossier actif et l'ensemble des branchements.
@@ -259,6 +296,22 @@ export async function photosDe(branchementId) {
   const photos = await promesseRequete(tx.objectStore('photos').index('branchementId').getAll(branchementId));
   await promesseTransaction(tx);
   return photos;
+}
+
+/**
+ * Renvoie toutes les photos du dossier (tous branchements confondus), en un
+ * seul aller IndexedDB — utilisé par l'export ZIP (Task 17) pour éviter un
+ * `photosDe(id)` par branchement (jusqu'à ~931 lectures séquentielles) : le
+ * groupement par `branchementId` est fait en mémoire par l'appelant.
+ *
+ * @returns {Promise<object[]>}
+ */
+export async function toutesLesPhotos() {
+  const db = await ouvrir();
+  const tx = db.transaction('photos', 'readonly');
+  const photos = await promesseRequete(tx.objectStore('photos').getAll());
+  await promesseTransaction(tx);
+  return photos ?? [];
 }
 
 /**

@@ -93,7 +93,7 @@ test('remplacerDossier efface aussi les photos existantes', async () => {
   assert.deepEqual(await store.photosDe(id1), []);
 });
 
-test('remplacerApresFusion se comporte comme remplacerDossier (alias partage)', async () => {
+test('remplacerApresFusion remplace le dossier et les branchements comme remplacerDossier', async () => {
   await store.remplacerDossier(dossierMinimal(), [
     { ligne: 4, valeursClient: { pce: 'a' }, saisies: {}, ajoute: false, vEnDur: false },
   ]);
@@ -105,6 +105,53 @@ test('remplacerApresFusion se comporte comme remplacerDossier (alias partage)', 
   assert.equal(dossier.nom, 'fusion.xlsx');
   assert.equal(branchements.length, 1);
   assert.equal(branchements[0].valeursClient.pce, 'b');
+});
+
+test('remplacerApresFusion conserve les photos des branchements dont l’id est repris (rapprochés/orphelins)', async () => {
+  await store.remplacerDossier(dossierMinimal(), []);
+  const id = await store.ajouterBranchement({ ligne: 4, valeursClient: { pce: 'a' }, saisies: { commentaireIdent: 'x' }, ajoute: false, vEnDur: false });
+  await store.ajouterPhoto({ branchementId: id, blob: new Uint8Array([1]), index: 1, date: 'd', nom: '1.jpg' });
+
+  // Fusion : la ligne est rapprochée, même id repris (comme le ferait fusionner()).
+  await store.remplacerApresFusion(dossierMinimal({ nom: 'fusion.xlsx' }), [
+    { id, ligne: 4, valeursClient: { pce: 'a' }, saisies: { commentaireIdent: 'x' }, ajoute: false, vEnDur: false },
+  ]);
+
+  const photos = await store.photosDe(id);
+  assert.equal(photos.length, 1);
+  assert.equal(photos[0].nom, '1.jpg');
+});
+
+test('remplacerApresFusion purge les photos d’un branchement abandonné (absent du résultat de fusion)', async () => {
+  await store.remplacerDossier(dossierMinimal(), []);
+  const idGarde = await store.ajouterBranchement({ ligne: 4, valeursClient: { pce: 'a' }, saisies: {}, ajoute: false, vEnDur: false });
+  const idAbandonne = await store.ajouterBranchement({ ligne: 5, valeursClient: { pce: 'b' }, saisies: {}, ajoute: false, vEnDur: false });
+  await store.ajouterPhoto({ branchementId: idGarde, blob: new Uint8Array([1]), index: 1, date: 'd', nom: 'garde.jpg' });
+  await store.ajouterPhoto({ branchementId: idAbandonne, blob: new Uint8Array([2]), index: 1, date: 'd', nom: 'abandonne.jpg' });
+
+  // idAbandonne n'apparaît plus dans le résultat de fusion (ligne disparue sans saisie à conserver, §10.3).
+  await store.remplacerApresFusion(dossierMinimal({ nom: 'fusion.xlsx' }), [
+    { id: idGarde, ligne: 4, valeursClient: { pce: 'a' }, saisies: {}, ajoute: false, vEnDur: false },
+  ]);
+
+  const photosGardees = await store.photosDe(idGarde);
+  assert.equal(photosGardees.length, 1);
+  assert.equal(photosGardees[0].nom, 'garde.jpg');
+
+  const photosAbandonnees = await store.photosDe(idAbandonne);
+  assert.equal(photosAbandonnees.length, 0);
+});
+
+test('remplacerDossier (repartir de zero) efface toutes les photos, y compris avec un id repris', async () => {
+  await store.remplacerDossier(dossierMinimal(), []);
+  const id = await store.ajouterBranchement({ ligne: 4, valeursClient: { pce: 'a' }, saisies: {}, ajoute: false, vEnDur: false });
+  await store.ajouterPhoto({ branchementId: id, blob: new Uint8Array([1]), index: 1, date: 'd', nom: '1.jpg' });
+
+  await store.remplacerDossier(dossierMinimal({ nom: 'nouveau.xlsx' }), [
+    { id, ligne: 4, valeursClient: { pce: 'a' }, saisies: {}, ajoute: false, vEnDur: false },
+  ]);
+
+  assert.deepEqual(await store.photosDe(id), []);
 });
 
 test('majSaisies remplace entierement les saisies et met a jour dateModification', async () => {
@@ -175,6 +222,24 @@ test('photosDe renvoie uniquement les photos du branchement demande', async () =
   const photos1 = await store.photosDe(id1);
   assert.equal(photos1.length, 2);
   assert.ok(photos1.every((p) => p.branchementId === id1));
+});
+
+test('toutesLesPhotos renvoie les photos de tous les branchements en un seul appel', async () => {
+  await store.remplacerDossier(dossierMinimal(), []);
+  const id1 = await store.ajouterBranchement({ valeursClient: {}, saisies: {}, ajoute: true });
+  const id2 = await store.ajouterBranchement({ valeursClient: {}, saisies: {}, ajoute: true });
+  await store.ajouterPhoto({ branchementId: id1, blob: new Uint8Array([1]), index: 1, date: 'd', nom: '1.jpg' });
+  await store.ajouterPhoto({ branchementId: id2, blob: new Uint8Array([2]), index: 1, date: 'd', nom: '2.jpg' });
+
+  const toutes = await store.toutesLesPhotos();
+
+  assert.equal(toutes.length, 2);
+  assert.deepEqual(toutes.map((p) => p.branchementId).sort(), [id1, id2].sort());
+});
+
+test('toutesLesPhotos renvoie un tableau vide sans photos', async () => {
+  await store.remplacerDossier(dossierMinimal(), []);
+  assert.deepEqual(await store.toutesLesPhotos(), []);
 });
 
 test('supprimerPhoto retire une photo precise', async () => {
