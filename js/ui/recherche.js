@@ -1,9 +1,11 @@
 /**
  * Écran « Rechercher » (#recherche) — écran principal terrain (§7.2, ordre
  * imposé par la spec) :
- *  1. Bouton SCAN plein largeur (pour l'instant : saisie manuelle du
- *     matricule via `ouvrirScan()` — structuré pour que Task 16 y branche la
- *     caméra + `BarcodeDetector` sans changer l'appelant).
+ *  1. Bouton SCAN plein largeur : lance `scannerCodeBarre` (caméra +
+ *     `BarcodeDetector`, js/ui/camera.js, Task 16). Repli automatique sur la
+ *     saisie manuelle du matricule si l'API est absente ou si la caméra est
+ *     refusée/indisponible ; la saisie manuelle sert aussi à proposer une
+ *     recherche globale quand un matricule scanné est inconnu du dossier.
  *  2. Champ de recherche globale (filtre instantané ≥ 2 caractères).
  *  3. Filtres cumulables (statut en OR, phase en AND) — placés juste sous le
  *     champ pour agir immédiatement sur le contenu ci-dessous, qu'il
@@ -29,6 +31,7 @@ import { chargerTout } from '../core/store.js';
 import { calculerStatuts, normaliser, comparerNumeros, valeurEffective } from '../core/regles.js';
 import { echapperHtml } from './dom.js';
 import { prefiller } from './ajout.js';
+import { scannerCodeBarre } from './camera.js';
 
 const LIMITE_RESULTATS = 50;
 
@@ -158,8 +161,7 @@ function rendreEcran(conteneur, dossier, etat) {
   };
 
   conteneur.querySelector('#btn-scan').addEventListener('click', () => {
-    ouvrirScan(etat);
-    rendreZoneScan(zoneScan, etat, actions);
+    lancerScan(etat, zoneScan, actions);
   });
 
   champRecherche.value = etat.recherche;
@@ -174,13 +176,41 @@ function rendreEcran(conteneur, dossier, etat) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. SCAN — pour l'instant, saisie manuelle du matricule. `ouvrirScan()` est
-// le point de branchement de Task 16 (caméra + BarcodeDetector) : l'appelant
-// (le bouton SCAN) ne changera pas, seule cette fonction sera enrichie.
+// 1. SCAN — caméra + BarcodeDetector (js/ui/camera.js), repli sur la saisie
+// manuelle du matricule (`etat.scanOuvert` contrôle la visibilité de ce
+// panneau de repli, jamais du flux caméra lui-même).
 // ---------------------------------------------------------------------------
 
-function ouvrirScan(etat) {
-  etat.scanOuvert = !etat.scanOuvert;
+// Déclenché par le bouton SCAN : tente la caméra ; ne bascule sur le panneau
+// manuel qu'en cas d'API absente ou de caméra refusée/indisponible (§8). Un
+// « Annuler » explicite pendant le scan ne fait que fermer l'overlay caméra
+// (rien d'autre à afficher, l'utilisateur peut relancer SCAN).
+function lancerScan(etat, zoneScan, actions) {
+  scannerCodeBarre(
+    (valeur) => gererValeurScan(valeur, etat, zoneScan, actions),
+    (raison) => {
+      if (raison === 'indisponible' || raison === 'refus') {
+        etat.scanOuvert = true;
+        rendreZoneScan(zoneScan, etat, actions);
+      }
+    }
+  );
+}
+
+// Correspondance sur le matricule (valeur scannée ou saisie manuellement) :
+// trouvé → fiche directement ; sinon → panneau manuel affiché avec message
+// « inconnu » + proposition de recherche globale (repli existant conservé).
+function gererValeurScan(valeur, etat, zoneScan, actions) {
+  const cible = normaliser(valeur);
+  const trouve = etat.index.find((item) => item.matriculeNorm === cible);
+  if (trouve) {
+    actions.naviguerFiche(trouve.id);
+    return;
+  }
+  etat.scanOuvert = true;
+  rendreZoneScan(zoneScan, etat, actions);
+  const zoneMessage = zoneScan.querySelector('#zone-message-scan');
+  if (zoneMessage) remplirMessageIntrouvable(zoneMessage, valeur, actions);
 }
 
 function rendreZoneScan(zoneScan, etat, actions) {
@@ -190,6 +220,10 @@ function rendreZoneScan(zoneScan, etat, actions) {
   }
   zoneScan.innerHTML = `
     <div class="carte">
+      <div class="fiche-barre-haut">
+        <strong>Saisir le matricule manuellement</strong>
+        <button class="bouton" id="btn-fermer-scan" type="button">Fermer</button>
+      </div>
       <label for="champ-matricule">Matricule compteur</label>
       <input type="text" id="champ-matricule" autocomplete="off" autocapitalize="characters">
       <button class="bouton btn-primaire" id="btn-valider-matricule" type="button">Valider</button>
@@ -200,6 +234,11 @@ function rendreZoneScan(zoneScan, etat, actions) {
   const champMatricule = zoneScan.querySelector('#champ-matricule');
   const zoneMessage = zoneScan.querySelector('#zone-message-scan');
   champMatricule.focus();
+
+  zoneScan.querySelector('#btn-fermer-scan').addEventListener('click', () => {
+    etat.scanOuvert = false;
+    rendreZoneScan(zoneScan, etat, actions);
+  });
 
   const valider = () => {
     const valeur = champMatricule.value.trim();
@@ -223,6 +262,10 @@ function traiterScan(valeur, etat, zoneMessage, actions) {
     actions.naviguerFiche(trouve.id);
     return;
   }
+  remplirMessageIntrouvable(zoneMessage, valeur, actions);
+}
+
+function remplirMessageIntrouvable(zoneMessage, valeur, actions) {
   zoneMessage.innerHTML = `
     <p class="texte-2">Matricule inconnu dans ce dossier.</p>
     <button class="bouton" id="btn-recherche-globale-scan" type="button">Rechercher « ${echapperHtml(valeur)} » dans le dossier</button>

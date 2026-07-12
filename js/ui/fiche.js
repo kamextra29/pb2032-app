@@ -9,8 +9,8 @@
  *    AG) : `<select>` construits depuis `dossier.listes` (jamais de valeur en
  *    dur), pression (V) recalculée en direct à chaque rendu.
  *  - Section Report (AH…AN).
- *  - Indicateur de complétude, pictogrammes de statut, zone photos (placeholder
- *    Task 16).
+ *  - Indicateur de complétude, pictogrammes de statut, zone photos
+ *    (capture/compression/galerie, voir js/ui/camera.js, Task 16).
  *  - Branchement ajouté (§7.4, `b.ajoute === true`) uniquement : bouton
  *    « Supprimer ce branchement » en bas de fiche (confirmation inline,
  *    jamais `window.confirm`) → `supprimerAjout` (branchement + photos) →
@@ -45,6 +45,7 @@ import { chargerTout, majSaisies, supprimerAjout } from '../core/store.js';
 import { calculerPression, calculerStatuts, calculerCompletude, valeurEffective } from '../core/regles.js';
 import { COLONNES } from '../core/colonnes.js';
 import { echapperHtml } from './dom.js';
+import { monterZonePhotos, demonterZonePhotos } from './camera.js';
 
 const LIBELLES = Object.fromEntries(COLONNES.map((c) => [c.cle, c.libelle]));
 
@@ -86,6 +87,7 @@ export async function monter(conteneur, parametre, estActif = () => true) {
 
   return function demonter() {
     etat.actif = false;
+    demonterZonePhotos();
   };
 }
 
@@ -160,10 +162,7 @@ function render(conteneur, etat) {
       <div id="zone-entete"></div>
       <div id="zone-identification"></div>
       <div id="zone-report"></div>
-      <div class="carte">
-        <h2>Photos</h2>
-        <p class="texte-2">Photos — disponible prochainement.</p>
-      </div>
+      <div class="carte fiche-section" id="zone-photos"></div>
       ${statuts.ajoute ? '<div id="zone-suppression"></div>' : ''}
     </section>
   `;
@@ -191,6 +190,9 @@ function render(conteneur, etat) {
   rendreEntete(conteneur.querySelector('#zone-entete'), etat, actions);
   rendreIdentification(conteneur.querySelector('#zone-identification'), etat, actions);
   rendreReport(conteneur.querySelector('#zone-report'), etat, actions);
+  monterZonePhotos(etat.b.id, conteneur.querySelector('#zone-photos')).catch((erreur) => {
+    console.error('Chargement des photos impossible :', erreur);
+  });
 
   if (statuts.ajoute) {
     rendreSuppression(conteneur.querySelector('#zone-suppression'), etat);
