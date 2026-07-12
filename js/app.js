@@ -25,6 +25,7 @@ import * as accueil from './ui/accueil.js';
 import * as recherche from './ui/recherche.js';
 import * as fiche from './ui/fiche.js';
 import * as ajout from './ui/ajout.js';
+import { lireParametre, ecrireParametre } from './core/store.js';
 
 const conteneur = document.getElementById('ecran');
 
@@ -83,3 +84,74 @@ function marquerNavActive(cle) {
 
 window.addEventListener('hashchange', naviguer);
 naviguer();
+
+// PWA : service worker (hors ligne) + bannière de mise à jour, et stockage
+// persistant (§5 spec) — tout ceci après le premier rendu, sans bloquer.
+enregistrerServiceWorker();
+gererStockagePersistant();
+
+function enregistrerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('./sw.js').then((enregistrement) => {
+    // Nouvelle version déjà téléchargée et en attente (détectée à un lancement précédent).
+    if (enregistrement.waiting && navigator.serviceWorker.controller) {
+      afficherBanniereMiseAJour(enregistrement.waiting);
+    }
+    enregistrement.addEventListener('updatefound', () => {
+      const nouveau = enregistrement.installing;
+      if (!nouveau) return;
+      nouveau.addEventListener('statechange', () => {
+        if (nouveau.state === 'installed' && navigator.serviceWorker.controller) {
+          afficherBanniereMiseAJour(nouveau);
+        }
+      });
+    });
+  }).catch((erreur) => console.warn('Service worker non enregistré :', erreur));
+}
+
+function afficherBanniereMiseAJour(worker) {
+  if (document.getElementById('banniere-maj')) return;
+  const banniere = document.createElement('div');
+  banniere.id = 'banniere-maj';
+  banniere.className = 'banniere-maj';
+  banniere.innerHTML = `
+    <span>Nouvelle version disponible</span>
+    <button type="button" id="banniere-maj-recharger">Recharger</button>
+  `;
+  document.body.appendChild(banniere);
+  let recharge = false;
+  banniere.querySelector('#banniere-maj-recharger').addEventListener('click', () => {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (recharge) return;
+      recharge = true;
+      location.reload();
+    }, { once: true });
+    worker.postMessage({ type: 'skipWaiting' });
+  });
+}
+
+async function gererStockagePersistant() {
+  try {
+    if (!navigator.storage?.persist) return;
+    if (await navigator.storage.persisted()) return;
+    const accorde = await navigator.storage.persist();
+    if (accorde) return;
+    const dejaAverti = await lireParametre('avertissementPersistanceAffiche');
+    if (dejaAverti) return;
+    afficherAvertissementPersistance();
+    await ecrireParametre('avertissementPersistanceAffiche', true);
+  } catch (erreur) {
+    console.warn('Stockage persistant indisponible :', erreur);
+  }
+}
+
+function afficherAvertissementPersistance() {
+  const avertissement = document.createElement('div');
+  avertissement.className = 'avertissement-persistance';
+  avertissement.innerHTML = `
+    <span>Le stockage persistant n'a pas été accordé — évitez de vider les données du navigateur depuis les réglages Android.</span>
+    <button type="button" aria-label="Fermer">✕</button>
+  `;
+  document.body.appendChild(avertissement);
+  avertissement.querySelector('button').addEventListener('click', () => avertissement.remove());
+}

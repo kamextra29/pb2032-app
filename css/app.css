@@ -561,3 +561,60 @@ button:disabled, .bouton:disabled {
   border-color: var(--accent-fonce);
   color: #fff;
 }
+
+/* PWA : bannière de mise à jour du service worker + avertissement stockage (Task 18, §5/§13). */
+
+.banniere-maj,
+.avertissement-persistance {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 60;
+  max-width: 688px;
+  margin: 0 auto;
+  background: var(--carte);
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.banniere-maj {
+  border: 1px solid var(--accent-fonce);
+}
+.banniere-maj span {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--texte);
+}
+.banniere-maj button {
+  min-height: 48px;
+  background: var(--accent-fonce);
+  border-color: var(--accent-fonce);
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.avertissement-persistance {
+  border: 1px solid var(--ecart);
+}
+.avertissement-persistance span {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--texte);
+  line-height: 1.35;
+}
+.avertissement-persistance button {
+  min-height: 48px;
+  min-width: 48px;
+  flex-shrink: 0;
+  padding: 8px;
+  background: transparent;
+  border-color: var(--bord);
+  color: var(--texte-2);
+}
