@@ -275,6 +275,88 @@ button:disabled, .bouton:disabled {
 
 .affiner { text-align: center; padding: 8px 0; }
 
+/* Fiche branchement : en-tête corrigible, sections identification/report,
+   pression calculée, statuts, complétude. */
+
+.fiche-barre-haut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fiche-statuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.badge-ok { color: var(--ok); border-color: var(--ok); }
+.badge-report { color: var(--accent); border-color: var(--accent); }
+.badge-alerte { color: var(--danger); border-color: var(--danger); }
+.badge-corrige { color: var(--ecart); border-color: var(--ecart); }
+.badge-ajoute {
+  background: var(--ecart);
+  border-color: var(--ecart);
+  color: #12161c;
+  font-weight: 600;
+}
+
+.carte-completude p { margin: 0; }
+.carte-completude p + p { margin-top: 4px; }
+
+.fiche-section h2 { margin-bottom: 4px; }
+
+.fiche-champs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.champ-ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.champ-ligne label { margin-bottom: 0; }
+
+.champ-lecture {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.champ-libelle { color: var(--texte-2); font-size: 0.9rem; }
+.champ-valeur { font-weight: 600; }
+
+.champ-client-origine { margin: 0; }
+
+.champ-actions { flex-wrap: wrap; }
+.champ-actions button { flex: 0 0 auto; min-width: 96px; }
+
+.champ-case {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  cursor: pointer;
+}
+.champ-case input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  min-height: 0;
+  flex-shrink: 0;
+  accent-color: var(--accent-fonce);
+}
+
+.ligne-pression {
+  background: var(--fond);
+  border: 1px solid var(--bord);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
 .barre-bas {
   position: fixed;
   bottom: 0;
