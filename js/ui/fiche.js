@@ -73,6 +73,7 @@ export async function monter(conteneur, parametre, estActif = () => true) {
     dossier,
     suggestions: construireSuggestions(branchements),
     correctionsOuvertes: new Set(), // clés d'en-tête actuellement en édition
+    fileSauvegarde: Promise.resolve(), // sérialise les écritures IndexedDB (voir enregistrer)
   };
 
   render(conteneur, etat);
@@ -163,16 +164,20 @@ function render(conteneur, etat) {
   conteneur.querySelector('#btn-retour').addEventListener('click', () => history.back());
 
   const actions = {
-    enregistrer: async (nouvellesSaisies) => {
-      try {
-        await majSaisies(b.id, nouvellesSaisies);
-      } catch (erreur) {
-        console.error('Enregistrement impossible :', erreur);
-        return;
-      }
+    // Sauvegarde atomique vis-à-vis de l'état en mémoire : etat.b.saisies et
+    // l'écran sont mis à jour SYNCHRONEMENT (avant tout await), puis la
+    // persistance IndexedDB est sérialisée sur une file. Deux champs modifiés
+    // coup sur coup ne peuvent donc plus s'écraser (chaque écriture repart du
+    // dernier état fusionné, et les écritures arrivent dans l'ordre) — sinon,
+    // sur une saisie rapide champ à champ, la seconde partait d'un
+    // etat.b.saisies périmé et le dernier write perdait la modif précédente.
+    enregistrer: (nouvellesSaisies) => {
       if (!etat.actif) return;
-      b.saisies = nouvellesSaisies;
+      etat.b.saisies = nouvellesSaisies;
       render(conteneur, etat);
+      etat.fileSauvegarde = etat.fileSauvegarde
+        .then(() => majSaisies(etat.b.id, { ...etat.b.saisies }))
+        .catch((erreur) => { console.error('Enregistrement impossible :', erreur); });
     },
   };
 
@@ -291,12 +296,8 @@ function attacherEnteteEcouteurs(zone, etat, actions) {
   zone.querySelectorAll('.champ-edition input').forEach((input) => {
     input.addEventListener('change', () => {
       const cle = input.closest('.champ-edition').dataset.cle;
-      const brut = input.value.trim();
-      const valeurClientStr = String(etat.b.valeursClient[cle] ?? '').trim();
-      const nouvelles = { ...etat.b.saisies };
-      if (brut === valeurClientStr) delete nouvelles[cle];
-      else nouvelles[cle] = brut;
-      etat.correctionsOuvertes.delete(cle);
+      const nouvelles = poserChamp(etat.b.saisies, etat.b.valeursClient, cle, input.value);
+      etat.correctionsOuvertes.delete(cle); // variante en-tête : referme l'édition
       actions.enregistrer(nouvelles);
     });
   });
@@ -370,14 +371,23 @@ function champCaseHtml(cle, libelle, valeur) {
   `;
 }
 
-// Enregistre un champ « simple » : élague la saisie si elle redevient égale à
-// la valeur client (aucune fausse correction stockée), §7.3 Step 2.
+// Pose (ou élague) une saisie de champ « simple » : renvoie un nouvel objet
+// saisies dérivé de `saisies`, avec `cle` posée à la valeur (trimmée) de
+// `brut`, ou retirée si elle redevient égale à la valeur client (aucune
+// fausse correction stockée, §7.3 Step 2). Fonction pure, source unique de la
+// logique de comparaison/élagage (partagée en-tête et sections listes).
+function poserChamp(saisies, valeursClient, cle, brut) {
+  const valeurClientStr = String(valeursClient[cle] ?? '').trim();
+  const valeur = String(brut).trim();
+  const nouvelles = { ...saisies };
+  if (valeur === valeurClientStr) delete nouvelles[cle];
+  else nouvelles[cle] = valeur;
+  return nouvelles;
+}
+
+// Enregistre un champ « simple » via poserChamp puis autosave.
 function definirChamp(etat, actions, cle, brut) {
-  const valeurClientStr = String(etat.b.valeursClient[cle] ?? '').trim();
-  const nouvelles = { ...etat.b.saisies };
-  if (String(brut).trim() === valeurClientStr) delete nouvelles[cle];
-  else nouvelles[cle] = brut;
-  return actions.enregistrer(nouvelles);
+  actions.enregistrer(poserChamp(etat.b.saisies, etat.b.valeursClient, cle, brut));
 }
 
 // Enregistre une case à cocher (valeur { 1 } ou absente) : si la valeur client
@@ -444,10 +454,7 @@ function attacherIdentificationEcouteurs(zone, etat, actions) {
   const selectMatiere = zone.querySelector('#champ-matiere');
   if (selectMatiere) {
     selectMatiere.addEventListener('change', () => {
-      const valeurClientStr = String(etat.b.valeursClient.matiere ?? '').trim();
-      const nouvelles = { ...etat.b.saisies };
-      if (selectMatiere.value.trim() === valeurClientStr) delete nouvelles.matiere;
-      else nouvelles.matiere = selectMatiere.value;
+      const nouvelles = poserChamp(etat.b.saisies, etat.b.valeursClient, 'matiere', selectMatiere.value);
       delete nouvelles.diametre; // cascade Q→R : la sélection précédente ne s'applique plus forcément
       actions.enregistrer(nouvelles);
     });
@@ -456,10 +463,7 @@ function attacherIdentificationEcouteurs(zone, etat, actions) {
   const selectBague = zone.querySelector('#champ-bague');
   if (selectBague) {
     selectBague.addEventListener('change', () => {
-      const valeurClientStr = String(etat.b.valeursClient.bague ?? '').trim();
-      const nouvelles = { ...etat.b.saisies };
-      if (selectBague.value.trim() === valeurClientStr) delete nouvelles.bague;
-      else nouvelles.bague = selectBague.value;
+      const nouvelles = poserChamp(etat.b.saisies, etat.b.valeursClient, 'bague', selectBague.value);
       if (selectBague.value !== 'DPBE') delete nouvelles.longueurSonde; // U masqué ⇒ sa saisie disparaît
       actions.enregistrer(nouvelles);
     });
