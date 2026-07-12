@@ -24,25 +24,15 @@ import * as dossier from './ui/dossier.js';
 import * as accueil from './ui/accueil.js';
 import * as recherche from './ui/recherche.js';
 import * as fiche from './ui/fiche.js';
+import * as ajout from './ui/ajout.js';
 
 const conteneur = document.getElementById('ecran');
-
-function stub(titre) {
-  return async (conteneur) => {
-    conteneur.innerHTML = `
-      <section class="ecran">
-        <h1>${echapperHtml(titre)}</h1>
-        <p class="texte-2">À venir.</p>
-      </section>
-    `;
-  };
-}
 
 const ECRANS = {
   accueil: accueil.monter,
   recherche: recherche.monter,
   fiche: fiche.monter,
-  ajout: stub('Ajouter un branchement'),
+  ajout: ajout.monter,
   dossier: dossier.monter,
 };
 

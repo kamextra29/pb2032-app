@@ -11,6 +11,12 @@
  *  - Section Report (AH…AN).
  *  - Indicateur de complétude, pictogrammes de statut, zone photos (placeholder
  *    Task 16).
+ *  - Branchement ajouté (§7.4, `b.ajoute === true`) uniquement : bouton
+ *    « Supprimer ce branchement » en bas de fiche (confirmation inline,
+ *    jamais `window.confirm`) → `supprimerAjout` (branchement + photos) →
+ *    retour à `#recherche`. Ses champs d'en-tête n'ont pas de valeur client
+ *    (`valeursClient` vide) : ils ne sont jamais présentés comme « corrigés »
+ *    (voir le garde `b.ajoute !== true` dans `ligneEnteteHtml`).
  *
  * Enregistrement automatique : chaque `change`/blur reconstruit l'objet
  * `saisies` complet et appelle `majSaisies` — pas de bouton « Enregistrer ».
@@ -35,7 +41,7 @@
  *     effacée silencieusement.
  */
 
-import { chargerTout, majSaisies } from '../core/store.js';
+import { chargerTout, majSaisies, supprimerAjout } from '../core/store.js';
 import { calculerPression, calculerStatuts, calculerCompletude, valeurEffective } from '../core/regles.js';
 import { COLONNES } from '../core/colonnes.js';
 import { echapperHtml } from './dom.js';
@@ -158,6 +164,7 @@ function render(conteneur, etat) {
         <h2>Photos</h2>
         <p class="texte-2">Photos — disponible prochainement.</p>
       </div>
+      ${statuts.ajoute ? '<div id="zone-suppression"></div>' : ''}
     </section>
   `;
 
@@ -184,6 +191,51 @@ function render(conteneur, etat) {
   rendreEntete(conteneur.querySelector('#zone-entete'), etat, actions);
   rendreIdentification(conteneur.querySelector('#zone-identification'), etat, actions);
   rendreReport(conteneur.querySelector('#zone-report'), etat, actions);
+
+  if (statuts.ajoute) {
+    rendreSuppression(conteneur.querySelector('#zone-suppression'), etat);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Suppression (branchements ajoutés uniquement, §7.4) : jamais proposée sur
+// une ligne issue du fichier client (statuts.ajoute la garde tout entière).
+// Confirmation inline (pas de window.confirm) : bouton danger → carte
+// d'avertissement Confirmer/Annuler → suppression (branchement + photos,
+// cf. store.supprimerAjout) → retour à la recherche.
+// ---------------------------------------------------------------------------
+
+function rendreSuppression(zone, etat) {
+  zone.innerHTML = `<button class="bouton btn-danger bouton-grand" id="btn-supprimer-ajout" type="button">Supprimer ce branchement</button>`;
+  zone.querySelector('#btn-supprimer-ajout').addEventListener('click', () => {
+    rendreConfirmationSuppression(zone, etat);
+  });
+}
+
+function rendreConfirmationSuppression(zone, etat) {
+  zone.innerHTML = `
+    <div class="carte bloc-avertissement">
+      <p><strong>Confirmer la suppression ?</strong> Les photos seront supprimées.</p>
+      <div class="rangee-boutons">
+        <button class="bouton" id="btn-annuler-suppression" type="button">Annuler</button>
+        <button class="bouton btn-danger" id="btn-confirmer-suppression" type="button">Confirmer</button>
+      </div>
+    </div>
+  `;
+  zone.querySelector('#btn-annuler-suppression').addEventListener('click', () => {
+    rendreSuppression(zone, etat);
+  });
+  zone.querySelector('#btn-confirmer-suppression').addEventListener('click', () => {
+    const boutonConfirmer = zone.querySelector('#btn-confirmer-suppression');
+    boutonConfirmer.disabled = true;
+    supprimerAjout(etat.b.id).then(() => {
+      if (!etat.actif) return;
+      location.hash = '#recherche';
+    }).catch((erreur) => {
+      if (!etat.actif) return;
+      zone.innerHTML = `<p class="texte-2 texte-erreur">Suppression impossible : ${echapperHtml(erreur?.message ?? String(erreur))}</p>`;
+    });
+  });
 }
 
 function pictosFicheHtml(statuts) {
@@ -228,8 +280,13 @@ function rendreEntete(zone, etat, actions) {
 function ligneEnteteHtml(cle, b, etat) {
   const libelle = LIBELLES[cle];
   const valeurClient = b.valeursClient[cle];
-  const corrige = Object.hasOwn(b.saisies, cle);
-  const valeurEff = corrige ? b.saisies[cle] : valeurClient;
+  // Un branchement ajouté (§7.4) n'a pas de valeursClient : ses champs
+  // d'en-tête SONT les saisies, il n'y a donc rien à « corriger » ni à
+  // annuler vis-à-vis d'une valeur client qui n'existe pas (sans ce garde-fou,
+  // chaque champ saisi à la création afficherait à tort un badge « corrigé »
+  // et un bouton Annuler qui effacerait la seule valeur connue).
+  const corrige = b.ajoute !== true && Object.hasOwn(b.saisies, cle);
+  const valeurEff = valeurEffective(b, cle);
   const enEdition = etat.correctionsOuvertes.has(cle);
 
   if (enEdition) {

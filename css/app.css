@@ -275,6 +275,8 @@ button:disabled, .bouton:disabled {
 
 .affiner { text-align: center; padding: 8px 0; }
 
+.texte-erreur { color: var(--danger); }
+
 /* Fiche branchement : en-tête corrigible, sections identification/report,
    pression calculée, statuts, complétude. */
 

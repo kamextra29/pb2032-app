@@ -28,6 +28,7 @@
 import { chargerTout } from '../core/store.js';
 import { calculerStatuts, normaliser, comparerNumeros, valeurEffective } from '../core/regles.js';
 import { echapperHtml } from './dom.js';
+import { prefiller } from './ajout.js';
 
 const LIMITE_RESULTATS = 50;
 
@@ -374,6 +375,7 @@ function rendreListeBranchements(filtres, commune, rue) {
       { libelle: rue, niveau: 'branchements' },
     ])}
     <div class="liste-branchements">${lignes || '<p class="texte-2">Aucun branchement.</p>'}</div>
+    <button type="button" class="bouton" id="btn-ajouter-ici">+ Ajouter un branchement ici</button>
   `;
 }
 
@@ -451,6 +453,17 @@ function attacherClicsNavigation(zoneContenu, etat, actions) {
       actions.actualiserContenu();
     });
   });
+
+  // Ajout depuis une rue (§7.4) : préremplit commune+rue pour le formulaire
+  // #ajout avant d'y naviguer. N'apparaît qu'au niveau « branchements »
+  // (une rue précise est alors sélectionnée dans etat.vue).
+  const boutonAjouter = zoneContenu.querySelector('#btn-ajouter-ici');
+  if (boutonAjouter) {
+    boutonAjouter.addEventListener('click', () => {
+      prefiller({ commune: etat.vue.commune, rue: etat.vue.rue });
+      location.hash = '#ajout';
+    });
+  }
 
   attacherClicsBranchements(zoneContenu, actions);
 }
