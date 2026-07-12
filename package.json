@@ -1,0 +1,14 @@
+{
+  "name": "pb2032-app",
+  "version": "1.0.0",
+  "description": "PWA hors-ligne d'identification de branchements GRDF PB 2032",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.mjs"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5"
+  }
+}
