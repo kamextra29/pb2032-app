@@ -1,3 +1,6 @@
-﻿*.xlsx
+*.xlsx
+*.zip
 photos-reelles/
 node_modules/
+.tmp-verif.xlsx
+.tmp_smoke/
