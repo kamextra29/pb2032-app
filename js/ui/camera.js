@@ -167,14 +167,34 @@ if (typeof window !== 'undefined' && typeof window.location !== 'undefined'
 let jetonGalerie = 0;
 let urlsActives = [];
 
+// Overlay plein écran ouvert (au plus un à la fois). Il possède sa PROPRE URL
+// d'objet (créée à l'ouverture, revoquée à la fermeture), indépendante des URL
+// de vignettes gérées par `urlsActives` : un re-rendu de galerie (autosave de
+// fiche) ne peut donc jamais revoquer l'image affichée en plein écran.
+let overlayPleinEcran = null;
+
 function revoquerUrlsActives() {
   for (const url of urlsActives) URL.revokeObjectURL(url);
   urlsActives = [];
 }
 
-/** À appeler depuis le `demonter()` de l'écran fiche : arrête toute galerie en cours de chargement et revoque les URL restantes. */
+function fermerPleinEcran() {
+  if (!overlayPleinEcran) return;
+  const { element, url } = overlayPleinEcran;
+  overlayPleinEcran = null;
+  URL.revokeObjectURL(url);
+  element.remove();
+}
+
+/**
+ * À appeler depuis le `demonter()` de l'écran fiche : ferme l'éventuel overlay
+ * plein écran (sinon il resterait figé par-dessus l'écran suivant, avec une
+ * image cassée une fois son URL revoquée), arrête toute galerie en cours de
+ * chargement et revoque les URL de vignettes restantes.
+ */
 export function demonterZonePhotos() {
   jetonGalerie++;
+  fermerPleinEcran();
   revoquerUrlsActives();
 }
 
@@ -231,8 +251,9 @@ async function rendreGalerie(conteneur, branchementId) {
     `;
   }).join('');
 
-  grille.querySelectorAll('.vignette-photo img').forEach((img) => {
-    img.addEventListener('click', () => ouvrirPleinEcran(img.src, img.alt));
+  grille.querySelectorAll('.vignette-photo img').forEach((img, i) => {
+    const photo = photos[i]; // même ordre que la grille construite ci-dessus
+    img.addEventListener('click', () => ouvrirPleinEcran(photo.blob, img.alt));
   });
 
   grille.querySelectorAll('.btn-suppr-photo').forEach((bouton) => {
@@ -296,12 +317,15 @@ function demanderSuppression(bouton, conteneur, branchementId) {
   });
 }
 
-function ouvrirPleinEcran(url, alt) {
+function ouvrirPleinEcran(blob, alt) {
+  fermerPleinEcran(); // un seul overlay à la fois (et libère l'URL du précédent)
+  const url = URL.createObjectURL(blob);
   const overlay = document.createElement('div');
   overlay.className = 'photo-plein-ecran';
   overlay.innerHTML = `<img src="${echapperHtml(url)}" alt="${echapperHtml(alt ?? '')}">`;
-  overlay.addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', fermerPleinEcran);
   document.body.appendChild(overlay);
+  overlayPleinEcran = { element: overlay, url };
 }
 
 // ---------------------------------------------------------------------------
