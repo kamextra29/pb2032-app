@@ -460,7 +460,9 @@ function attacherClicsNavigation(zoneContenu, etat, actions) {
   const boutonAjouter = zoneContenu.querySelector('#btn-ajouter-ici');
   if (boutonAjouter) {
     boutonAjouter.addEventListener('click', () => {
-      prefiller({ commune: etat.vue.commune, rue: etat.vue.rue });
+      // Trim ici pour rester cohérent avec construireIndex de ajout.js (qui
+      // trim les communes) : une commune à espaces retomberait sinon en « Autre… ».
+      prefiller({ commune: (etat.vue.commune ?? '').trim(), rue: (etat.vue.rue ?? '').trim() });
       location.hash = '#ajout';
     });
   }

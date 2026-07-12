@@ -60,12 +60,17 @@ export async function monter(conteneur, _parametre, estActif = () => true) {
   const communeConnue = !!prefill?.commune && index.communes.has(prefill.commune);
 
   const etat = {
+    actif: true, // invalidé par demonter() : protège les callbacks async de creer()
     communeChoisie: prefill?.commune ? (communeConnue ? prefill.commune : VALEUR_AUTRE) : '',
     communeLibreInitiale: prefill?.commune && !communeConnue ? prefill.commune : '',
     rueInitiale: prefill?.rue ?? '',
   };
 
   render(conteneur, etat, index, dossier, branchements);
+
+  return function demonter() {
+    etat.actif = false;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -249,6 +254,17 @@ function creer(conteneur, etat, index, branchements) {
   const boutonCreer = conteneur.querySelector('#btn-creer');
   boutonCreer.disabled = true;
 
+  // Deux garde-fous complémentaires pour ne jamais « happer » l'utilisateur
+  // vers #fiche s'il a quitté l'écran pendant l'écriture IndexedDB :
+  //  - `etat.actif` (posé false par demonter()) couvre le cas où la
+  //    navigation a déjà été traitée par le routeur ;
+  //  - `location.hash` est mis à jour SYNCHRONEMENT quand l'utilisateur
+  //    navigue, alors que l'événement hashchange (donc demonter()) est
+  //    asynchrone : si l'écriture se résout avant que le routeur n'ait
+  //    démonté l'écran, `etat.actif` est encore true mais le hash a déjà
+  //    changé — on le compare donc à sa valeur au lancement de la création.
+  const hashAuLancement = location.hash;
+
   ajouterBranchement({
     ligne: null,
     ajoute: true,
@@ -257,8 +273,10 @@ function creer(conteneur, etat, index, branchements) {
     saisies,
     vEnDur: false,
   }).then((id) => {
+    if (!etat.actif || location.hash !== hashAuLancement) return; // parti ailleurs : ne pas forcer #fiche
     location.hash = `#fiche/${id}`;
   }).catch((erreur) => {
+    if (!etat.actif) return; // écran démonté : ne pas toucher un DOM périmé
     boutonCreer.disabled = false;
     zoneErreur.innerHTML = `<p class="texte-2 texte-erreur">Création impossible : ${echapperHtml(erreur?.message ?? String(erreur))}</p>`;
   });
