@@ -1,14 +1,14 @@
 :root {
-  --fond: #12161c;
-  --carte: #1c222b;
-  --texte: #e8eaed;
-  --texte-2: #9aa4b2;
-  --bord: #333c48;
-  --accent: #4da3ff;
-  --accent-fonce: #1f6fd1;
-  --ok: #5fbf6b;
-  --ecart: #e0a83f;
-  --danger: #f0645f;
+  --fond: #ffffff;
+  --carte: #f3f5f8;
+  --texte: #1a1f26;
+  --texte-2: #566072;
+  --bord: #cfd6e0;
+  --accent: #1666c9;
+  --accent-fonce: #1257a8;
+  --ok: #178036;
+  --ecart: #9a6410;
+  --danger: #cc2f2a;
 }
 
 * { box-sizing: border-box; }
@@ -300,7 +300,7 @@ button:disabled, .bouton:disabled {
 .badge-ajoute {
   background: var(--ecart);
   border-color: var(--ecart);
-  color: #12161c;
+  color: #fff;
   font-weight: 600;
 }
 
@@ -410,7 +410,7 @@ button:disabled, .bouton:disabled {
   border-radius: 50%;
   background: rgba(18, 22, 28, 0.75);
   border: 1px solid var(--bord);
-  color: var(--texte);
+  color: #fff;
   line-height: 1;
   font-size: 1rem;
 }
