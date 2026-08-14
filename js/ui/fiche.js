@@ -367,16 +367,17 @@ function attacherEnteteEcouteurs(zone, etat, actions) {
 // libre avec datalist, textarea, case à cocher (1/absent).
 // ---------------------------------------------------------------------------
 
-function selectHtml(cle, libelle, listeValeurs, valeurEff) {
+function selectHtml(cle, libelle, listeValeurs, valeurEff, requisManquant = false) {
   const valeurEffStr = valeurEff === undefined || valeurEff === null ? '' : String(valeurEff);
   const listeStr = (listeValeurs ?? []).map((v) => String(v));
   const optionsListe = listeStr.map((v) => optionHtml(v, valeurEffStr)).join('');
-  const manque = valeurEffStr !== '' && !listeStr.includes(valeurEffStr);
-  const optionExtra = manque ? optionHtml(valeurEffStr, valeurEffStr) : '';
+  const horsListe = valeurEffStr !== '' && !listeStr.includes(valeurEffStr);
+  const optionExtra = horsListe ? optionHtml(valeurEffStr, valeurEffStr) : '';
+  const classe = requisManquant ? ' class="champ-manquant"' : '';
   return `
     <div class="champ-ligne">
       <label for="champ-${echapperHtml(cle)}">${echapperHtml(libelle)}</label>
-      <select id="champ-${echapperHtml(cle)}">
+      <select id="champ-${echapperHtml(cle)}"${classe}>
         <option value=""></option>
         ${optionsListe}
         ${optionExtra}
@@ -390,11 +391,12 @@ function optionHtml(valeur, valeurEffStr) {
   return `<option value="${echapperHtml(valeur)}"${selectionne}>${echapperHtml(valeur)}</option>`;
 }
 
-function champNumeriqueHtml(cle, libelle, valeur) {
+function champNumeriqueHtml(cle, libelle, valeur, requisManquant = false) {
+  const classe = requisManquant ? ' class="champ-manquant"' : '';
   return `
     <div class="champ-ligne">
       <label for="champ-${echapperHtml(cle)}">${echapperHtml(libelle)}</label>
-      <input type="number" step="any" id="champ-${echapperHtml(cle)}" value="${echapperHtml(valeur ?? '')}">
+      <input type="number" step="any" id="champ-${echapperHtml(cle)}" value="${echapperHtml(valeur ?? '')}"${classe}>
     </div>
   `;
 }
@@ -478,6 +480,7 @@ function rendreIdentification(zone, etat, actions) {
   const eff = valeursEffectivesToutes(b);
 
   const diametreListe = dossier.listes.diametreParMatiere[String(eff.matiere ?? '')] ?? [];
+  const manquants = new Set(champsManquants(eff)); // champs requis encore vides → cadre rouge
   const pression = calculerPression(
     eff.accessoires === undefined || eff.accessoires === null ? '' : String(eff.accessoires),
     eff.bague === undefined || eff.bague === null ? '' : String(eff.bague),
@@ -487,13 +490,13 @@ function rendreIdentification(zone, etat, actions) {
   zone.innerHTML = `
     <div class="carte fiche-section">
       <h2>Identification</h2>
-      ${selectHtml('constatCoffret', LIBELLES.constatCoffret, dossier.listes.constatCoffret, eff.constatCoffret)}
-      ${selectHtml('constatBrt', LIBELLES.constatBrt, dossier.listes.constatBrt, eff.constatBrt)}
-      ${selectHtml('matiere', LIBELLES.matiere, dossier.listes.matiere, eff.matiere)}
-      ${selectHtml('diametre', LIBELLES.diametre, diametreListe, eff.diametre)}
-      ${selectHtml('accessoires', LIBELLES.accessoires, dossier.listes.accessoires, eff.accessoires)}
-      ${selectHtml('bague', LIBELLES.bague, dossier.listes.bague, eff.bague)}
-      ${String(eff.bague ?? '') === 'DPBE' ? champNumeriqueHtml('longueurSonde', LIBELLES.longueurSonde, eff.longueurSonde) : ''}
+      ${selectHtml('constatCoffret', LIBELLES.constatCoffret, dossier.listes.constatCoffret, eff.constatCoffret, manquants.has('constatCoffret'))}
+      ${selectHtml('constatBrt', LIBELLES.constatBrt, dossier.listes.constatBrt, eff.constatBrt, manquants.has('constatBrt'))}
+      ${selectHtml('matiere', LIBELLES.matiere, dossier.listes.matiere, eff.matiere, manquants.has('matiere'))}
+      ${selectHtml('diametre', LIBELLES.diametre, diametreListe, eff.diametre, manquants.has('diametre'))}
+      ${selectHtml('accessoires', LIBELLES.accessoires, dossier.listes.accessoires, eff.accessoires, manquants.has('accessoires'))}
+      ${selectHtml('bague', LIBELLES.bague, dossier.listes.bague, eff.bague, manquants.has('bague'))}
+      ${String(eff.bague ?? '') === 'DPBE' ? champNumeriqueHtml('longueurSonde', LIBELLES.longueurSonde, eff.longueurSonde, manquants.has('longueurSonde')) : ''}
       <p class="ligne-pression"><strong>Pression :</strong> ${echapperHtml(pression)} (calculée)</p>
       ${champTextareaHtml('commentaireIdent', LIBELLES.commentaireIdent, eff.commentaireIdent)}
       ${champTexteLibreHtml('phaseTerrain', LIBELLES.phaseTerrain, eff.phaseTerrain, dossier.listes.phaseTerrain)}

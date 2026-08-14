@@ -1,6 +1,6 @@
 // Service worker cache-first : l'appli fonctionne entièrement hors-ligne.
 // Chemins RELATIFS uniquement (l'app vit sous /pb2032-app/ sur GitHub Pages).
-const CACHE = 'pb2032-v2';
+const CACHE = 'pb2032-v3';
 
 const PRECACHE = [
   './',

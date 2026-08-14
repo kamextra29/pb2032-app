@@ -1,9 +1,9 @@
 :root {
   --fond: #ffffff;
   --carte: #f3f5f8;
-  --texte: #1a1f26;
-  --texte-2: #566072;
-  --bord: #cfd6e0;
+  --texte: #000000;
+  --texte-2: #2b3038;
+  --bord: #000000;
   --accent: #1666c9;
   --accent-fonce: #1257a8;
   --ok: #178036;
@@ -74,6 +74,13 @@ input:focus, textarea:focus, select:focus, button:focus-visible, .bouton:focus-v
   outline-offset: 1px;
 }
 textarea { resize: none; min-height: 48px; }
+
+/* Champ obligatoire encore vide : cadre rouge tant qu'il manque l'information. */
+select.champ-manquant,
+input.champ-manquant {
+  border-color: var(--danger);
+  border-width: 2px;
+}
 
 label { font-size: 0.9rem; color: var(--texte-2); display: block; margin-bottom: 4px; }
 
